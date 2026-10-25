@@ -13,6 +13,11 @@ public sealed class CodegenPass(IModelProvider provider)
         as one complete, compilable source file. Follow every constraint. No placeholders, no TODOs,
         no omitted sections.
 
+        Add nothing. No control flow, exits, breaks, validation, null or end-of-input checks, error
+        handling, logging or features beyond what the specification states. Where it is silent,
+        choose the behaviour that adds the least. A faithful program that seems unwise is correct;
+        a "safer" program that behaves differently is wrong.
+
         Return JSON: `filename` (the requested output file name), `code` (the entire file), and
         `notes` (one or two sentences on any judgment calls; empty string if none).
         """;

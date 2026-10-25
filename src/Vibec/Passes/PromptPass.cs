@@ -23,6 +23,10 @@ public sealed class PromptPass(IModelProvider provider)
         - For deferred values (`vibe<T>("...")` marked deferred), decide the value yourself and say why.
         - Spell out the target's constraints and how its I/O maps to print/ask.
         - Mention anything the generator might trip on (unused variables, integer division, etc.).
+        - Faithfulness is the first rule. The program does exactly what the Vibe program says and
+          nothing more: no extra exits or breaks, no input validation, no null/end-of-input handling,
+          no retries, no error messages, no features the source doesn't contain. If the source loops
+          forever, the program loops forever. State this rule explicitly in the prompt you write.
         - Do not write the program itself. Write the specification.
 
         Output only the prompt, as Markdown, starting with a "# Task" heading.
@@ -50,8 +54,8 @@ public sealed class PromptPass(IModelProvider provider)
               A failed conversion raises an error (catchable by try/catch) whose message says what couldn't be converted.
             """,
         ["deferred"] = "- `vibe<T>(\"literal\")` marked `deferred` means the compiler couldn't interpret the literal; pick the most sensible constant of type T and state it.",
-        ["vibe-expr"] = "- `%description%` is an inline prompt: implement what the description says, producing the annotated type.",
-        ["ask"] = "- `ask(prompt)` writes the prompt (no newline, followed by a space) and reads one line of input, without the line ending.",
+        ["vibe-expr"] = "- `%description%` is an inline prompt: implement exactly what the description says and nothing beyond it, producing the annotated type. If it reads input, it behaves like ask (including at end of input).",
+        ["ask"] = "- `ask(prompt)` writes the prompt (no newline, followed by a space) and reads one line of input, without the line ending. At end of input it returns an empty string; it never stops, breaks out of, or exits the program.",
         ["vibecheck"] = "- `vibecheck cond` is an assertion: if false, write `vibe check failed: <the condition as written>` to stderr and exit with code 1.",
         ["try"] = "- `try { } catch (e) { }` catches any error raised in the block; `e` is the error's message as a string.",
         ["for-int"] = "- `for i in n` (n an int) iterates i = 0 .. n-1.",
