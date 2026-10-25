@@ -1,0 +1,3 @@
+* text=auto eol=lf
+*.vibe linguist-language=Text
+*.sln text eol=crlf

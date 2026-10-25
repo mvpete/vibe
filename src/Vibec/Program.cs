@@ -1,0 +1,105 @@
+using Vibec;
+using Vibec.Providers;
+
+const string Usage = """
+    vibec - the Vibe compiler
+
+    usage:
+      vibec <file.vibe> [options]
+      vibec doctor [<target>] [--refresh] [--provider <p>] [--model <m>]
+
+    options:
+      -t, --target <t>     any language: csharp (default), rust, go, html, python, zig, ...
+                           (the model works out the toolchain; you approve it once)
+      -o, --out <dir>      where the output goes (default: bin/ next to the source)
+      --provider <p>       openai (default), ollama          [env VIBEC_PROVIDER, appsettings Provider]
+      --model <m>          model id                          [env VIBEC_MODEL, appsettings Model]
+      --base-url <url>     any OpenAI-compatible endpoint
+      --dump-prompt        write the IR prompt + codegen transcript to .vibe-int/
+      --dump-ast           write the annotated AST to .vibe-int/
+      --no-build           skip the toolchain build/repair loop
+      --max-repairs <n>    build-repair rounds (default 3)
+      --fresh              ignore the vibe cache and re-ask everything
+      --refresh            re-discover the target's toolchain recipe
+      -y, --yes            approve a new toolchain recipe without asking
+    """;
+
+var opts = new Dictionary<string, string?>();
+var positional = new List<string>();
+for (int i = 0; i < args.Length; i++)
+{
+    var a = args[i];
+    string Value() => i + 1 < args.Length ? args[++i] : throw new VibeError($"{a} needs a value");
+    try
+    {
+        switch (a)
+        {
+            case "-t" or "--target": opts["target"] = Value(); break;
+            case "-o" or "--out": opts["out"] = Value(); break;
+            case "--provider": opts["provider"] = Value(); break;
+            case "--model": opts["model"] = Value(); break;
+            case "--base-url": opts["base-url"] = Value(); break;
+            case "--max-repairs": opts["max-repairs"] = Value(); break;
+            case "--dump-prompt" or "--dump-ast" or "--no-build" or "--fresh" or "--refresh": opts[a[2..]] = "1"; break;
+            case "-y" or "--yes": opts["yes"] = "1"; break;
+            case "-h" or "--help": Console.WriteLine(Usage); return 0;
+            default:
+                if (a.StartsWith('-')) { Console.Error.WriteLine($"unknown option {a}\n\n{Usage}"); return 64; }
+                positional.Add(a);
+                break;
+        }
+    }
+    catch (VibeError ex) { Console.Error.WriteLine(ex.Message); return 64; }
+}
+
+if (positional.Count == 0) { Console.WriteLine(Usage); return 64; }
+
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+try
+{
+    var settings = Settings.Load();
+    var provider = ProviderFactory.Create(opts.GetValueOrDefault("provider"), opts.GetValueOrDefault("model"), opts.GetValueOrDefault("base-url"), settings);
+
+    if (positional[0] == "doctor")
+        return await Doctor.RunAsync(provider, positional.ElementAtOrDefault(1), opts.ContainsKey("refresh"), opts.ContainsKey("yes"), cts.Token);
+
+    var path = positional[0];
+    if (!File.Exists(path)) { Console.Error.WriteLine($"no such file: {path}"); return 66; }
+
+    var target = (opts.GetValueOrDefault("target") ?? "csharp").ToLowerInvariant();
+
+    var options = new CompileOptions
+    {
+        SourcePath = path,
+        Target = target,
+        OutDir = opts.GetValueOrDefault("out"),
+        DumpPrompt = opts.ContainsKey("dump-prompt"),
+        DumpAst = opts.ContainsKey("dump-ast"),
+        Build = !opts.ContainsKey("no-build"),
+        MaxRepairs = int.TryParse(opts.GetValueOrDefault("max-repairs"), out var n) ? n : 3,
+        Fresh = opts.ContainsKey("fresh"),
+        AssumeYes = opts.ContainsKey("yes"),
+        RefreshToolchain = opts.ContainsKey("refresh"),
+    };
+
+    Console.WriteLine($"vibec {Path.GetFileName(path)} → {target}");
+    return await new Compiler(provider, Console.Out).CompileAsync(options, cts.Token);
+}
+catch (VibeError ex)
+{
+    Console.Error.WriteLine($"  error: {ex.Message}");
+    return 1;
+}
+catch (ModelException ex)
+{
+    Console.Error.WriteLine($"  model error: {ex.Message}");
+    return 2;
+}
+catch (OperationCanceledException)
+{
+    Console.Error.WriteLine("  cancelled. the vibes will keep.");
+    return 130;
+}

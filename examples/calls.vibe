@@ -1,0 +1,16 @@
+string greet(string who) {
+    return "hey {$who}"
+}
+int add(int a, int b) { return a + b }
+int answer() { return 42 }
+
+greet "world"
+int total = add 1, 2
+print greet "you"
+print "total:", total, answer
+for i in range 3 {
+    print i - 1
+}
+list<int> xs = [1, 2]
+xs.push 4
+int lucky = GenerateLuckyNumber 7

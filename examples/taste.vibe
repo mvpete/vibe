@@ -1,0 +1,43 @@
+#prompt keep the output friendly and a little cheeky
+
+# strongly-loose typing: the declared type wins, the value gets vibed into it
+int five = "five"
+float rent = "about 2k"
+bool ready = "yeah fr"
+list<int> evens = "first five evens"
+var anything = "untouched"
+int sure = "42"
+
+string greet(string who) {
+    return f"hey {who}, you're {five} out of five"
+}
+
+for n in evens {
+    if n kinda 5 {
+        print("close enough:", n)
+    }
+}
+
+print(greet("world"))
+int roll = %a fair six-sided dice roll%
+list<string> names = evens.map(n => f"user{n}")
+int lucky = GenerateLuckyNumber()
+
+vibecheck five > 3
+string mood = ask("how are we feeling?")
+
+try {
+    int x = mood
+    print(x * 2)
+} catch (e) {
+    print(f"that's not a number, that's a feeling: {e}")
+}
+
+if maybe {
+    print("lucky", lukcy)
+}
+
+%prompt {
+    Finish with a one-line sign-off
+    that mentions how many names there were.
+}

@@ -1,0 +1,7 @@
+
+while infinity {
+
+ string name = %ask the user their name%
+ print "hello {$name}"
+ 
+}

@@ -1,0 +1,47 @@
+#prompt keep it unserious
+
+based int max = 3
+rentfree int score = 0
+bool legit = nocap
+bool fake = cap
+
+void bump() {
+    glowup score          # score is rentfree: visible in here
+}
+
+maincharacter {
+    for i in range 10 {
+        if i == max { ghost }
+        if i % 2 == 0 { nvm }
+        bump
+    }
+
+    spill score
+    fr score > 0
+    delulu legit
+
+    string mood = %ask the user how they're feeling%
+    vibeshift mood {
+        "great", "amazing" => highkey "slay"
+        "meh" => lowkey "it's giving mid"
+        _ => {
+            print "no thoughts, head empty"
+        }
+    }
+
+    vibeshift score {
+        "one" => print "W"
+        _ => print "L"
+    }
+
+    touchgrass "half a second"
+
+    try {
+        yeet "the ick"
+    } sus (e) {
+        print "caught: {$e}"
+    }
+
+    if fake { periodt }
+    itsgiving
+}

@@ -1,0 +1,4 @@
+bin/
+obj/
+.vibe-int/
+appsettings.json

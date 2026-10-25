@@ -1,0 +1,33 @@
+name: Bug report
+description: The rules said one thing and something else happened.
+labels: [bug]
+body:
+  - type: textarea
+    id: rules
+    attributes:
+      label: Your rules
+      description: The smallest .vibe program that shows the problem.
+      render: vibe
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+      description: Precisely. This is a rules-based project.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Paste vibec's output. `--dump-ast` and `--dump-prompt` (in .vibe-int/) help a lot.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: setup
+    attributes:
+      label: Setup
+      description: OS, target, provider and model.
+      placeholder: Windows 11, --target csharp, openai / gpt-5
