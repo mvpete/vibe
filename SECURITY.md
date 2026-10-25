@@ -27,3 +27,7 @@ variable. Never commit it. Use a project key with a spending limit.
 
 Please report security issues privately through GitHub's "Report a vulnerability" (Security tab →
 Advisories), not in a public issue.
+
+## Full disclosure
+
+None of this has actually been checked. I vibe coded this whole thing.
