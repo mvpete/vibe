@@ -241,8 +241,16 @@ public static class Toolchains
             var dest = Path.Combine(binDir, name + recipe.Extension);
             File.Copy(Path.Combine(srcDir, recipe.FileName), dest, overwrite: true);
             delivered.Add(dest);
+            return delivered;
         }
-        else if (Directory.Exists(output))
+
+        // an artifact in its own output folder (out/app.exe) usually needs its siblings
+        // (.NET's app.dll + runtimeconfig, shared libraries, assets): ship the whole folder
+        if (File.Exists(output) && Path.GetDirectoryName(Path.GetFullPath(output)) is { } parent
+            && !string.Equals(parent, Path.GetFullPath(srcDir).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+            output = parent;
+
+        if (Directory.Exists(output))
         {
             foreach (var file in Directory.GetFiles(output, "*", SearchOption.AllDirectories))
             {

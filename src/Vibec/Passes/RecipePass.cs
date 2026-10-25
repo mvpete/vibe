@@ -28,7 +28,11 @@ public sealed class RecipePass(IModelProvider provider, TextWriter log)
         - `build` should produce the real deliverable (an executable, a bundle...), not just a
           syntax check, when the language has one.
         - `output`: the path the build produces, relative to the build folder - a file (e.g. "{out}")
-          or a folder (e.g. "out" for `dotnet build -o out`). It gets copied to the user's bin folder.
+          or a folder (e.g. "out" for `dotnet build -o out`). It gets copied to the user's bin folder,
+          so it must be everything needed to run: if the executable needs companion files (runtime
+          config, DLLs, shared libraries, assets), give the folder, not the executable.
+        - Target the toolchain that is actually installed: use {major}/{minor} for framework or
+          language versions (e.g. net{major}.0) instead of hardcoding an older one.
           Use null when the source file itself is the deliverable (Python, JavaScript, HTML...).
         - Placeholders: {name} (the program's name; name projects and binaries after it),
           {file} (the source file), {out} (the executable name, {name}.exe on Windows),
