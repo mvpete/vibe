@@ -224,6 +224,9 @@ The full rulebook is in [SPEC.md](SPEC.md). The reasoning behind all this is in 
 **Isn't this just programming?**
 Programming is when you write code. This is when you write rules, and then the rules become code.
 
+**Isn't strongly-loose typing an oxymoron?**
+So is jumbo shrimp. People still order it.
+
 **Isn't `int count = "twelve"` exactly the kind of ambiguity you're trying to avoid?**
 No. It's a guarantee. The ambiguity is resolved at compile time and you're warned about anything
 that couldn't be. That's the opposite of a vibe.
