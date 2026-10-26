@@ -2,22 +2,18 @@ using System.Globalization;
 
 namespace Vibec.Providers;
 
-public sealed record Price(double InputPerMTok, double OutputPerMTok);
+/// USD per million tokens. CachedInputPerMTok is null when the provider has no cache discount.
+public sealed record Price(double InputPerMTok, double OutputPerMTok, double? CachedInputPerMTok = null);
 
-/// Wraps any provider and keeps a running total of tokens (and estimated cost) across every
-/// model call in a compile: resolution, lowering, backend, repairs, toolchain discovery.
-public sealed class MeteredProvider(IModelProvider inner, Price? price) : IModelProvider
+public sealed record PriceQuote(Price Price, string Source);
+
+/// Wraps any provider and keeps a running total of tokens across every model call in a compile:
+/// resolution, lowering, backend, repairs, toolchain discovery.
+public sealed class MeteredProvider(IModelProvider inner) : IModelProvider
 {
-    // Defaults, in USD per million tokens. Prices change; override them in appsettings.json ("Pricing").
-    public static readonly Dictionary<string, Price> DefaultPrices = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["gpt-5"] = new(1.25, 10.00),
-        ["gpt-5-mini"] = new(0.25, 2.00),
-        ["gpt-5-nano"] = new(0.05, 0.40),
-    };
-
     public int Calls { get; private set; }
     public long InputTokens { get; private set; }
+    public long CachedInputTokens { get; private set; }
     public long OutputTokens { get; private set; }
 
     public string Name => inner.Name;
@@ -29,18 +25,26 @@ public sealed class MeteredProvider(IModelProvider inner, Price? price) : IModel
         var reply = await inner.CompleteAsync(request, ct);
         Calls++;
         InputTokens += reply.InputTokens;
+        CachedInputTokens += reply.CachedInputTokens;
         OutputTokens += reply.OutputTokens;
         return reply;
     }
 
     public Task<ProbeResult> ProbeAsync(CancellationToken ct) => inner.ProbeAsync(ct);
+    public Task<PriceQuote?> GetPriceAsync(CancellationToken ct) => inner.GetPriceAsync(ct);
 
-    public double? Cost => price == null ? null : (InputTokens * price.InputPerMTok + OutputTokens * price.OutputPerMTok) / 1_000_000;
+    public double CostOf(Price p) =>
+        ((InputTokens - CachedInputTokens) * p.InputPerMTok
+         + CachedInputTokens * (p.CachedInputPerMTok ?? p.InputPerMTok)
+         + OutputTokens * p.OutputPerMTok) / 1_000_000;
 
-    public string Summary()
+    public string Summary(PriceQuote? quote)
     {
         var inv = CultureInfo.InvariantCulture;
-        var tokens = $"{Calls} model call(s), {InputTokens.ToString("N0", inv)} in + {OutputTokens.ToString("N0", inv)} out tokens";
-        return Cost is { } cost ? $"{tokens}, ~${cost.ToString("0.0000", inv)} (estimated)" : $"{tokens} (no price for {Model}; add one under \"Pricing\" in appsettings.json)";
+        var cached = CachedInputTokens > 0 ? $" ({CachedInputTokens.ToString("N0", inv)} cached)" : "";
+        var tokens = $"{Calls} model call(s), {InputTokens.ToString("N0", inv)} in{cached} + {OutputTokens.ToString("N0", inv)} out tokens";
+        return quote == null
+            ? $"{tokens}. no price found for {Model}; set one under \"Pricing\" in appsettings.json"
+            : $"{tokens}, ${CostOf(quote.Price).ToString("0.0000", inv)} ({quote.Source})";
     }
 }

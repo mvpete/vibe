@@ -12,7 +12,8 @@
 - `public` / `flex`, `use x as y`.
 
 ### Compiler
-- Every compile reports its model calls, tokens and estimated cost (prices configurable in appsettings.json).
+- Every compile reports its model calls, tokens (cached input priced separately) and cost, using prices from OpenAI's pricing page (`IModelProvider.GetPriceAsync`); override in appsettings.json.
+- Default model is now `gpt-6-luna`.
 - Uncaught errors in generated programs print `error: <message>` and exit 1, instead of a stack trace.
 
 ## 0.1.0: the discovery

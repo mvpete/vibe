@@ -17,7 +17,7 @@ public sealed record ModelRequest(
     Effort Effort = Effort.Medium,
     int MaxOutputTokens = 16000);
 
-public sealed record ModelReply(string Text, bool Refused, string? RefusalReason, int InputTokens, int OutputTokens);
+public sealed record ModelReply(string Text, bool Refused, string? RefusalReason, int InputTokens, int OutputTokens, int CachedInputTokens = 0);
 
 public sealed record ProbeResult(bool Ok, string Detail);
 
@@ -38,6 +38,10 @@ public interface IModelProvider
 
     /// Cheap reachability check for `vibec doctor`; shouldn't spend tokens if avoidable.
     Task<ProbeResult> ProbeAsync(CancellationToken ct);
+
+    /// What this provider charges for its model, from the provider itself where possible.
+    /// Null when unknown.
+    Task<PriceQuote?> GetPriceAsync(CancellationToken ct);
 }
 
 public static class Structured

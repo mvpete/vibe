@@ -58,13 +58,12 @@ Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
 MeteredProvider? provider = null;
+Dictionary<string, Price> pricing = [];
 try
 {
     var settings = Settings.Load();
-    var inner = ProviderFactory.Create(opts.GetValueOrDefault("provider"), opts.GetValueOrDefault("model"), opts.GetValueOrDefault("base-url"), settings);
-    var price = settings.Pricing.GetValueOrDefault(inner.Model) ?? MeteredProvider.DefaultPrices.GetValueOrDefault(inner.Model);
-    if (inner.Name == "ollama") price ??= new Price(0, 0); // local: free
-    provider = new MeteredProvider(inner, price);
+    provider = new MeteredProvider(ProviderFactory.Create(opts.GetValueOrDefault("provider"), opts.GetValueOrDefault("model"), opts.GetValueOrDefault("base-url"), settings));
+    pricing = settings.Pricing;
 
     if (positional[0] == "doctor")
         return await Doctor.RunAsync(provider, positional.ElementAtOrDefault(1), opts.ContainsKey("refresh"), opts.ContainsKey("yes"), cts.Token);
@@ -107,6 +106,12 @@ catch (OperationCanceledException)
 }
 finally
 {
-    // what this compile cost, success or not
-    if (provider is { Calls: > 0 }) Console.WriteLine($"  {"usage",-12} {provider.Summary()}");
+    // what this compile cost, success or not: an appsettings override, else the provider's own prices
+    if (provider is { Calls: > 0 })
+    {
+        PriceQuote? quote = pricing.GetValueOrDefault(provider.Model) is { } own ? new PriceQuote(own, "appsettings.json") : null;
+        try { quote ??= await provider.GetPriceAsync(CancellationToken.None); }
+        catch (Exception) { /* pricing must never break a compile */ }
+        Console.WriteLine($"  {"usage",-12} {provider.Summary(quote)}");
+    }
 }

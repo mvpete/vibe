@@ -244,7 +244,7 @@ vibec doctor [target]                     model reachability + toolchain status
   --no-build        skip build/repair (output is unverified)
   --max-repairs N   default 3
   --provider P      openai (default) | ollama
-  --model M         default gpt-5
+  --model M         default gpt-6-luna
   --base-url U      any OpenAI-compatible endpoint
   --fresh           ignore the vibe cache
   --refresh         re-discover the toolchain recipe

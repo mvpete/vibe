@@ -30,4 +30,4 @@ body:
     attributes:
       label: Setup
       description: OS, target, provider and model.
-      placeholder: Windows 11, --target csharp, openai / gpt-5
+      placeholder: Windows 11, --target csharp, openai / gpt-6-luna

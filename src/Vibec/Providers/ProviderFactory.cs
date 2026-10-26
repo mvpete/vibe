@@ -6,7 +6,7 @@ public static class ProviderFactory
 
     static readonly Dictionary<string, string> DefaultModels = new()
     {
-        ["openai"] = "gpt-5",
+        ["openai"] = "gpt-6-luna",
         ["ollama"] = "qwen2.5-coder",
     };
 

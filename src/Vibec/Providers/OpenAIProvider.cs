@@ -14,6 +14,7 @@ public sealed class OpenAIProvider : IModelProvider
     readonly ChatClient _chat;
     readonly OpenAIModelClient _models;
     readonly bool _hasKey;
+    readonly string? _baseUrl;
     bool _effortSupported = true; // non-reasoning models reject reasoning_effort; learned on first call
 
     public string Name { get; }
@@ -25,6 +26,7 @@ public sealed class OpenAIProvider : IModelProvider
         Name = name;
         Model = model;
         _hasKey = !string.IsNullOrEmpty(apiKey) || baseUrl != null;
+        _baseUrl = baseUrl;
         var credential = new ApiKeyCredential(string.IsNullOrEmpty(apiKey) ? "not-needed" : apiKey);
         var options = new OpenAIClientOptions();
         if (baseUrl != null) options.Endpoint = new Uri(baseUrl);
@@ -69,7 +71,8 @@ public sealed class OpenAIProvider : IModelProvider
                     Refused: completion.Refusal != null || completion.FinishReason == ChatFinishReason.ContentFilter,
                     RefusalReason: completion.Refusal,
                     InputTokens: completion.Usage?.InputTokenCount ?? 0,
-                    OutputTokens: completion.Usage?.OutputTokenCount ?? 0);
+                    OutputTokens: completion.Usage?.OutputTokenCount ?? 0,
+                    CachedInputTokens: completion.Usage?.InputTokenDetails?.CachedTokenCount ?? 0);
             }
             catch (ClientResultException ex) when (_effortSupported && ex.Status == 400 && ex.Message.Contains("reasoning", StringComparison.OrdinalIgnoreCase))
             {
@@ -103,6 +106,16 @@ public sealed class OpenAIProvider : IModelProvider
         {
             return new ProbeResult(false, $"can't connect: {ex.Message}");
         }
+    }
+
+    /// OpenAI's own prices for OpenAI's API; a local endpoint (Ollama, LM Studio) is free;
+    /// any other OpenAI-compatible endpoint is unknown.
+    public async Task<PriceQuote?> GetPriceAsync(CancellationToken ct)
+    {
+        if (_baseUrl == null || new Uri(_baseUrl).Host.EndsWith("openai.com", StringComparison.OrdinalIgnoreCase))
+            return await OpenAIPricing.LookupAsync(Model, ct);
+        if (new Uri(_baseUrl).IsLoopback) return new PriceQuote(new Price(0, 0), "local, free");
+        return null;
     }
 
     static string FirstLine(string s) => s.Split('\n')[0].Trim();

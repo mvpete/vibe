@@ -10,7 +10,13 @@ public static class Doctor
     {
         Console.WriteLine("vibec doctor\n");
         var probe = await provider.ProbeAsync(ct);
-        Console.WriteLine($"  {"model",-11} {(probe.Ok ? "✅" : "❌")} {provider.Name}: {probe.Detail}\n");
+        Console.WriteLine($"  {"model",-11} {(probe.Ok ? "✅" : "❌")} {provider.Name}: {probe.Detail}");
+        var quote = probe.Ok ? await provider.GetPriceAsync(ct) : null;
+        Console.WriteLine(quote == null
+            ? $"  {"price",-11} ⚠️  no price found for {provider.Model}"
+            : $"  {"price",-11} ${quote.Price.InputPerMTok}/M in, ${quote.Price.OutputPerMTok}/M out" +
+              (quote.Price.CachedInputPerMTok is { } c ? $", ${c}/M cached" : "") + $" ({quote.Source})");
+        Console.WriteLine();
 
         IEnumerable<Recipe> recipes = Toolchains.All().OrderBy(r => r.Target).ToList();
         if (target != null)

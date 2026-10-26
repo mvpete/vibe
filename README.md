@@ -202,7 +202,7 @@ shows you the exact commands before running anything. Approve once and it rememb
 Every compile ends with what it cost:
 
 ```
-  usage        2 model call(s), 3,067 in + 13,816 out tokens, ~$0.1420 (estimated)
+  usage        2 model call(s), 1,196 in + 1,116 out tokens, $0.0007 (OpenAI pricing page, 2026-10-25)
 ```
 
 Output goes next to your rules:
