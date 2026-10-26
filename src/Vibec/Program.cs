@@ -15,6 +15,7 @@ const string Usage = """
       --provider <p>       openai (default), ollama          [env VIBEC_PROVIDER, appsettings Provider]
       --model <m>          model id                          [env VIBEC_MODEL, appsettings Model]
       --base-url <url>     any OpenAI-compatible endpoint
+      --dump-ast           also write the annotated AST to .vibe-int/<name>.ast.vibe
       --no-build           skip the toolchain build/repair loop
       --max-repairs <n>    build-repair rounds (default 3)
       --fresh              ignore the vibe cache and re-ask everything
@@ -38,7 +39,7 @@ for (int i = 0; i < args.Length; i++)
             case "--model": opts["model"] = Value(); break;
             case "--base-url": opts["base-url"] = Value(); break;
             case "--max-repairs": opts["max-repairs"] = Value(); break;
-            case "--no-build" or "--fresh" or "--refresh": opts[a[2..]] = "1"; break;
+            case "--dump-ast" or "--no-build" or "--fresh" or "--refresh": opts[a[2..]] = "1"; break;
             case "-y" or "--yes": opts["yes"] = "1"; break;
             case "-h" or "--help": Console.WriteLine(Usage); return 0;
             default:
@@ -74,6 +75,7 @@ try
         SourcePath = path,
         Target = target,
         OutDir = opts.GetValueOrDefault("out"),
+        DumpAst = opts.ContainsKey("dump-ast"),
         Build = !opts.ContainsKey("no-build"),
         MaxRepairs = int.TryParse(opts.GetValueOrDefault("max-repairs"), out var n) ? n : 3,
         Fresh = opts.ContainsKey("fresh"),

@@ -8,6 +8,7 @@ public sealed class CompileOptions
     public required string SourcePath { get; init; }
     public required string Target { get; init; }
     public string? OutDir { get; init; }
+    public bool DumpAst { get; init; }
     public bool Build { get; init; } = true;
     public int MaxRepairs { get; init; } = 3;
     public bool Fresh { get; init; }
@@ -77,17 +78,17 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
         }
 
         var annotated = Printer.Print(program.Concat(pass.Generated));
-        Intermediate(Path.Combine(intDir, $"{name}.ast.vibe"), annotated);
+        if (o.DumpAst) Intermediate(Path.Combine(intDir, $"{name}.ast.vibe"), annotated);
 
         var (ir, promptReply) = await new PromptPass(provider).WriteAsync(annotated, pass.Features, target, toolchain, ct);
         Step("lowering", $"specification ready ({promptReply.OutputTokens} tokens)");
-        Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.prompt.md"), ir);
+        Intermediate(Path.Combine(intDir, $"{name}.prompt"), ir);
 
         if (Directory.Exists(srcDir)) Directory.Delete(srcDir, recursive: true);
         Directory.CreateDirectory(srcDir);
 
         var result = await new CodegenPass(provider).RunAsync(ir, target, toolchain, o.MaxRepairs, srcDir, name, m => Step("backend", m), ct);
-        Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.transcript.md"), result.Transcript);
+        Intermediate(Path.Combine(intDir, $"{name}.transcript.md"), result.Transcript);
 
         var sourceFile = Path.Combine(srcDir, target.FileName);
         if (result.Verified && !result.Built)

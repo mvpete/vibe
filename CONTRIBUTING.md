@@ -30,7 +30,7 @@ To try the full pipeline you'll need a key. Copy `src/Vibec/appsettings.example.
 | `src/Vibec/StaticPass.cs` | types, scopes, coercions; produces the questions for semantic resolution |
 | `src/Vibec/Passes/` | the model passes: resolution (`VibePass`), lowering (`PromptPass`), backend (`CodegenPass`), toolchain discovery (`RecipePass`) |
 | `src/Vibec/Providers/` | model providers behind `IModelProvider` |
-| `src/Vibec/Printer.cs` | AST → normalized Vibe (`.vibe-int/<name>.ast.vibe`) |
+| `src/Vibec/Printer.cs` | AST → normalized Vibe (`--dump-ast`) |
 | `examples/` | every example is tested to parse, check and round-trip |
 
 ## Adding things
