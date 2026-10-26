@@ -1,0 +1,12 @@
+#prompt keep the output short and upbeat
+
+use game
+use storage
+use ui
+
+string name = ui.askName
+int points = game.score [4, 6, 2, 5]
+
+storage.save name, points
+ui.show storage.top 3
+print "best possible: {$game.maxScore}"

@@ -221,6 +221,16 @@ public sealed class For(int line, string var, Expr iter, List<Stmt> body) : Stmt
     public Expr Iter { get; set; } = iter;
     public List<Stmt> Body { get; } = body;
     public VType VarType { get; set; } = VType.Vibe;
+    public VType? DeclType { get; init; } // for (string s in xs): each element converts to this
+}
+
+/// for (int i = 0; i < n; i++) { }
+public sealed class CFor(int line, Stmt? init, Expr? cond, Stmt? step, List<Stmt> body) : Stmt(line)
+{
+    public Stmt? Init { get; } = init;
+    public Expr? Cond { get; set; } = cond;
+    public Stmt? Step { get; } = step;
+    public List<Stmt> Body { get; } = body;
 }
 
 public sealed class Repeat(int line, Expr count, List<Stmt> body) : Stmt(line)

@@ -26,7 +26,7 @@ public static class Lexer
         "const", "based", "global", "rentfree", "assume", "delulu", "ick",
         "spill", "lowkey", "highkey", "maincharacter",
         // modules
-        "json", "use", "as", "public", "flex", "native",
+        "json", "use", "as", "public", "flex", "native", "foreach",
     ];
 
     static readonly string[] Operators =
@@ -190,7 +190,7 @@ public static class Lexer
                 continue;
             }
 
-            throw new VibeError($"'{c}' is not a vibe", line);
+            throw new VibeError($"'{c}' doesn't vibe", line);
         }
         Push(Tok.Eof, "<eof>");
         return tokens;

@@ -138,7 +138,7 @@ public class LanguageAdditionTests
     [Fact]
     public void ContractBodiesAreAdopted()
     {
-        var key = Knowledge.FunctionKey("twice", [VType.Int], VType.Int) + " contract";
+        var key = Assert.Single(Vibe.Analyze("int twice(int x)\nprint twice 4").Pass.Questions).Key;
         var answer = new Answer { Ok = true, Source = "int twice(int x) { return x * 2 }" };
         var (program, pass) = Vibe.Analyze("int twice(int x)\nprint twice 4", Vibe.Knows((key, answer)));
         Assert.Empty(pass.Errors());

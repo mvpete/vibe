@@ -1,0 +1,6 @@
+#prompt keeps high scores in scores.json next to the program, best first
+
+use fs
+
+flex void save(string name, int points)
+flex list<string> top(int n)

@@ -3,9 +3,9 @@ using System.Text.Json.Nodes;
 
 namespace Vibec;
 
-public sealed record Diagnostic(int Line, string Message, bool IsError)
+public sealed record Diagnostic(int Line, string Message, bool IsError, string? File = null)
 {
-    public override string ToString() => $"line {Line}: {Message}";
+    public override string ToString() => $"{(File != null ? File + " " : "")}line {Line}: {Message}";
 }
 
 /// Pass 1. Scopes, type inference, and every place a value has to bend to fit a type.
@@ -33,6 +33,15 @@ public sealed class StaticPass(Knowledge knowledge)
 
     /// Last round: nothing more will be asked, so unresolved things get reported instead.
     public bool Final { get; init; }
+
+    /// A module other modules use (not the entry file): declarations only, no statements.
+    public bool IsLibrary { get; init; }
+    public string? ModuleName { get; init; }
+
+    /// Finds the module behind `use x`: the project's own modules first, then the standard library.
+    public Func<string, ModuleInfo?> ResolveModule { get; init; } = StdLib.Get;
+
+    string _modulePrompt = "";
 
     void Error(int line, string msg) => Diagnostics.Add(new Diagnostic(line, msg, true));
     void Warn(int line, string msg) => Diagnostics.Add(new Diagnostic(line, msg, false));
@@ -64,9 +73,19 @@ public sealed class StaticPass(Knowledge knowledge)
         foreach (var u in All(program).OfType<UseStmt>())
         {
             if (!program.Contains(u)) { Error(u.Line, "use goes at the top level"); continue; }
-            var module = StdLib.Get(u.Module);
+            var module = ResolveModule(u.Module);
             if (module == null) { Error(u.Line, $"can't find module '{u.Module}'. the standard library has: {string.Join(", ", StdLib.Names)}"); continue; }
+            if (u.Module == ModuleName) { Error(u.Line, "a module can't use itself"); continue; }
             if (!_modules.TryAdd(u.Name, module)) Error(u.Line, $"'{u.Name}' is used twice");
+        }
+
+        _modulePrompt = string.Join("\n", program.OfType<PromptStmt>().Where(p => p.Global).Select(p => p.Text));
+
+        // only the entry file runs things; the modules it uses just declare them
+        if (IsLibrary)
+        {
+            foreach (var s in program.Where(s => s is not (FnDecl or Decl or PromptStmt or UseStmt)))
+                Error(s.Line, $"{ModuleName} is a module, so it can only declare things (functions, variables, prompts). statements run in the entry file");
         }
 
         Push();
@@ -122,6 +141,7 @@ public sealed class StaticPass(Knowledge knowledge)
                 If i => i.Then.Concat(i.Else ?? []),
                 While w => w.Body,
                 For f => f.Body,
+                CFor cf => cf.Body,
                 Repeat r => r.Body,
                 TryCatch t => t.Body.Concat(t.Handler),
                 Switch sw => sw.Arms.SelectMany(a => a.Body),
@@ -183,6 +203,7 @@ public sealed class StaticPass(Knowledge knowledge)
 
             case Assign a:
                 a.Target = Check(a.Target);
+                if (a.Target is Member { Module: { } owner }) Error(a.Line, $"can't change {owner}'s variables from outside {owner}");
                 if (a.Target is Ident tid && IsConst(tid.Name)) Error(a.Line, $"'{tid.Name}' is const. it doesn't change. that's the point");
                 var target = a.Target.Type;
                 a.Value = CheckExpecting(a.Value, a.Op == "=" ? target : null);
@@ -233,12 +254,30 @@ public sealed class StaticPass(Knowledge knowledge)
                 else if (it == VType.Int) { f.VarType = VType.Int; Features.Add("for-int"); }
                 else if (it.IsDynamic) f.VarType = it;
                 else Error(f.Line, $"can't loop over a {it}");
+                if (f.DeclType != null && f.DeclType != f.VarType)
+                {
+                    // for (int n in strings): each element bends to the declared type
+                    if (!(f.VarType == VType.Int && f.DeclType == VType.Float)) { Features.Add("typed-for"); Features.Add("runtime-coercion"); }
+                    f.VarType = f.DeclType;
+                }
                 _loopDepth++;
                 Push();
                 Declare(f.Var, f.VarType);
                 CheckBlock(f.Body);
                 Pop();
                 _loopDepth--;
+                break;
+
+            case CFor cf:
+                Features.Add("c-for");
+                Push();
+                if (cf.Init != null) CheckStmt(cf.Init);
+                if (cf.Cond != null) cf.Cond = CoerceTo(CheckExpecting(cf.Cond, VType.Bool), VType.Bool, cf.Line);
+                _loopDepth++;
+                CheckBlock(cf.Body);
+                _loopDepth--;
+                if (cf.Step != null) CheckStmt(cf.Step);
+                Pop();
                 break;
 
             case Repeat r:
@@ -607,16 +646,20 @@ public sealed class StaticPass(Knowledge knowledge)
     /// A function with a signature and no body: the vibe pass writes the body, in Vibe.
     void FillContract(FnDecl fn)
     {
-        var key = Knowledge.FunctionKey(fn.Name, fn.Params.Select(p => p.Type), fn.Ret) + " contract";
-        var signature = Printer.Signature(fn);
+        var context = $"implement this exact signature, keeping the parameter names: {Printer.Signature(fn)}" +
+                      (ModuleName != null ? $". it belongs to module '{ModuleName}'" : "") +
+                      (_modulePrompt.Length > 0 ? $", which is described as: {_modulePrompt}" : "") +
+                      UsableModules();
+        // the context is part of the key: change what the module is for, or what it uses, and it's re-asked
+        var key = Knowledge.FunctionKey(fn.Name, fn.Params.Select(p => p.Type), fn.Ret) + " contract " + Knowledge.Hash(context);
         if (knowledge.TryGet(key, out var ans) && ans.Ok && ans.Source != null)
         {
             try
             {
                 var gen = Parser.ParseSource(ans.Source).OfType<FnDecl>().FirstOrDefault(f => f.Name == fn.Name);
-                if (gen != null && gen.Ret == fn.Ret && gen.Params.Select(p => p.Type).SequenceEqual(fn.Params.Select(p => p.Type)))
+                if (gen != null && gen.Ret == fn.Ret && gen.Params.Select(p => (p.Type, p.Name)).SequenceEqual(fn.Params.Select(p => (p.Type, p.Name))))
                 {
-                    // keep the programmer's parameter names: rename the generated body's to match
+                    // same signature, same parameter names: the body slots straight in
                     fn.Body.AddRange(gen.Body);
                     fn.Generated = true;
                     Features.Add("generated-fn");
@@ -633,8 +676,17 @@ public sealed class StaticPass(Knowledge knowledge)
         {
             Kind = QuestionKind.Function, Key = key, Line = fn.Line, Name = fn.Name,
             ArgTypes = fn.Params.Select(p => p.Type).ToList(), Expected = fn.Ret,
-            Context = $"implement this exact signature, keeping the parameter names: {signature}",
+            Context = context,
         });
+    }
+
+    /// What a generated body may call: the public surface of every module this one uses.
+    string UsableModules()
+    {
+        if (_modules.Count == 0) return "";
+        var parts = _modules.Select(kv =>
+            $"{kv.Key}: " + string.Join("; ", kv.Value.Functions.Values.Where(f => f.Public).Select(Printer.Signature)));
+        return ". call these modules (as module.function) rather than describing what they do: " + string.Join(" | ", parts);
     }
 
     Expr CheckMember(Member m)
@@ -645,7 +697,7 @@ public sealed class StaticPass(Knowledge knowledge)
         // module calls: `use http` gets the standard library's rules; no `use` gets vibes
         if (m.Target is Ident mid && Lookup(mid.Name) == null && !_functions.ContainsKey(mid.Name))
         {
-            if (_modules.TryGetValue(mid.Name, out var module)) return CheckStdMember(m, mid.Name, module);
+            if (_modules.TryGetValue(mid.Name, out var module)) return CheckModuleMember(m, mid.Name, module);
             if (StdLib.Get(mid.Name) != null) return CheckVibedModuleMember(m, mid.Name, expected);
         }
 
@@ -687,19 +739,36 @@ public sealed class StaticPass(Knowledge knowledge)
         return m;
     }
 
-    Expr CheckStdMember(Member m, string alias, ModuleInfo module)
+    /// `storage.save x` or `http.get url`: a member of a module this one uses, checked against
+    /// that module's public functions and variables.
+    Expr CheckModuleMember(Member m, string alias, ModuleInfo module)
     {
         m.Module = module.Name;
-        if (!module.Functions.TryGetValue(m.Name, out var fn))
+        var display = $"{alias}.{m.Name}";
+
+        if (module.Variables.TryGetValue(m.Name, out var variable) && m.Args == null && m.Named.Count == 0)
         {
-            Error(m.Line, $"{module.Name} has no '{m.Name}'. it has: {string.Join(", ", module.Functions.Keys.Order())}");
+            if (!variable.Public) Error(m.Line, $"'{m.Name}' is private to {module.Name}. mark it public (or flex) to share it");
+            m.Type = variable.Resolved;
             return m;
         }
-        Bind(fn, m.Args ?? [], m.Named, m.Line, $"{alias}.{m.Name}");
+
+        if (!module.Functions.TryGetValue(m.Name, out var fn))
+        {
+            Error(m.Line, $"{module.Name} has no '{m.Name}'. it has: {string.Join(", ", module.PublicNames)}");
+            foreach (var a in m.Args ?? []) Check(a);
+            return m;
+        }
+        if (!fn.Public) Error(m.Line, $"'{m.Name}' is private to {module.Name}. mark it public (or flex) to share it");
+        Bind(fn, m.Args ?? [], m.Named, m.Line, display);
         m.Type = fn.Ret;
-        Features.Add("std");
-        if (!UsedStd.TryGetValue(module.Name, out var used)) UsedStd[module.Name] = used = [];
-        used.Add(fn.Name);
+
+        if (module.IsStd)
+        {
+            Features.Add("std");
+            if (!UsedStd.TryGetValue(module.Name, out var used)) UsedStd[module.Name] = used = [];
+            used.Add(fn.Name);
+        }
         return m;
     }
 

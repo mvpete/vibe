@@ -26,6 +26,9 @@ public sealed class VibePass(IModelProvider provider)
           `expected` when given (otherwise choose one). Keep it short and obvious. For things only the
           final program can do (randomness, time, I/O, network) use an inline prompt %description%,
           e.g. `return %a random int from 1 to 100%`. Also set `returns` and a one-sentence `meaning`.
+          If it has a `context`, follow it exactly: it gives the signature to implement, what the module
+          is for, and the modules you can call. Call those modules (e.g. fs.read, fs.write) for real work
+          instead of describing it with an inline prompt.
         - "member": a method/property that isn't built in. Set `returns` (a Vibe type) and a
           one-sentence `meaning` describing what it does. ok=false only if it's nonsense.
           If `module` is set, it's a call into a module the program didn't import (like http.get):
@@ -141,7 +144,7 @@ public sealed class VibePass(IModelProvider provider)
         return new Outcome(resolved, rejected, reply.InputTokens, reply.OutputTokens);
     }
 
-    static JsonObject Describe(int id, Question q)
+    public static JsonObject Describe(int id, Question q)
     {
         var o = new JsonObject { ["id"] = id, ["kind"] = q.Kind.ToString().ToLowerInvariant(), ["line"] = q.Line };
         switch (q.Kind)
@@ -155,6 +158,7 @@ public sealed class VibePass(IModelProvider provider)
                 o["name"] = q.Name;
                 o["argTypes"] = new JsonArray(q.ArgTypes!.Select(t => (JsonNode)t.ToString()).ToArray());
                 o["expected"] = q.Expected?.ToString();
+                if (q.Context != null) o["context"] = q.Context;
                 break;
             case QuestionKind.Member:
                 if (q.Module != null) o["module"] = q.Module; else o["receiver"] = q.Receiver!.ToString();

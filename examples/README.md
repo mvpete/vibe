@@ -7,6 +7,7 @@
 | [calls.vibe](calls.vibe) | functions, calls without parentheses, a generated function |
 | [taste.vibe](taste.vibe) | strongly-loose typing, `kinda`, `maybe`, `#prompt`, typo fixing, runtime coercion |
 | [web.vibe](web.vibe) | `use http`, named arguments, durations, `json` |
+| [scores/](scores) | a project with modules: `use`, `public`, a contract-only module, privacy |
 | [nocap.vibe](nocap.vibe) | the Gen Z dictionary: `vibeshift`, `based`, `rentfree`, `yeet`, `touchgrass`, ... |
 
 ```powershell

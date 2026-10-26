@@ -4,7 +4,8 @@ namespace Vibec;
 public class Parser(List<Token> tokens)
 {
     int _pos;
-    bool _inPattern; // switch patterns: `name =>` is a pattern, not a lambda
+    bool _inPattern;
+    int _inBareArgs; // inside `f a, b`: `x name: v` is the arg x then a named arg for f, not x(name: v) // switch patterns: `name =>` is a pattern, not a lambda
 
     public static List<Stmt> ParseSource(string src) => new Parser(Lexer.Lex(src)).ParseProgram();
 
@@ -147,7 +148,7 @@ public class Parser(List<Token> tokens)
         else if (MatchAny("switch", "vibeshift")) return SwitchStmt(line);
         else if (Match("maincharacter")) { var body = Block(); SkipNewlines(); return new MainBlock(line, body); }
         else if (Match("while")) { var c = Expression(); return new While(line, c, Block()); }
-        else if (Match("for")) return ForStmt(line);
+        else if (MatchAny("for", "foreach")) return ForStmt(line);
         else if (Match("repeat"))
         {
             var count = Expression();
@@ -344,19 +345,63 @@ public class Parser(List<Token> tokens)
         return new If(line, cond, then, els);
     }
 
-    For ForStmt(int line)
+    /// for | foreach, with or without parens, x | var x | let x | string x, then in | of | :
+    /// Plus the C-style for (init; cond; step).
+    Stmt ForStmt(int line)
     {
-        // for x in xs { }  |  for (x in xs) { }  |  for (var x of xs) { }
-        bool parens = At("(");
-        if (parens) Next();
+        bool parens = Match("(");
+        if (parens && CStyleAhead()) return CForStmt(line);
+
         MatchAny("var", "let");
+        VType? declType = null;
+        int typeLen = TypeLength(0);
+        if (typeLen > 0 && Peek(typeLen).Type == Tok.Ident) declType = ParseType();
         var v = ExpectIdent().Text;
-        if (!MatchAny("in", "of")) throw new VibeError("for loops go 'for x in things'", Peek().Line);
+        if (!MatchAny("in", "of", ":")) throw new VibeError("for loops go 'for x in things' (or 'of', or ':')", Peek().Line);
         var iter = Expression();
         if (parens) Expect(")");
         var body = Block();
         SkipNewlines();
-        return new For(line, v, iter, body);
+        return new For(line, v, iter, body) { DeclType = declType };
+    }
+
+    /// After `for (`: is there a `;` before the matching `)`?
+    bool CStyleAhead()
+    {
+        for (int i = 0, depth = 0; Peek(i).Type != Tok.Eof; i++)
+        {
+            var t = Peek(i);
+            if (AtTok(t, "(")) depth++;
+            else if (AtTok(t, ")")) { if (depth-- == 0) return false; }
+            else if (t is { Type: Tok.Newline, Text: ";" } && depth == 0) return true;
+        }
+        return false;
+    }
+
+    void ExpectSemicolon()
+    {
+        if (Peek() is { Type: Tok.Newline, Text: ";" }) { Next(); return; }
+        throw new VibeError($"expected ';' in the for loop but got '{Peek().Text}'", Peek().Line);
+    }
+
+    bool AtSemicolon() => Peek() is { Type: Tok.Newline, Text: ";" };
+
+    CFor CForStmt(int line)
+    {
+        Stmt? init = null;
+        if (!AtSemicolon())
+        {
+            int typeLen = TypeLength(0);
+            init = (typeLen > 0 && Peek(typeLen).Type == Tok.Ident) || At("var") || At("let") ? Declaration(line) : SimpleStatement(line);
+        }
+        ExpectSemicolon();
+        Expr? cond = AtSemicolon() ? null : Expression();
+        ExpectSemicolon();
+        Stmt? step = At(")") ? null : SimpleStatement(line);
+        Expect(")");
+        var body = Block();
+        SkipNewlines();
+        return new CFor(line, init, cond, step, body);
     }
 
     // ---------- expressions ----------
@@ -458,20 +503,24 @@ public class Parser(List<Token> tokens)
         _ => false,
     };
 
+    bool StartsBareCall() => StartsArgument(Peek()) && !LambdaAhead() && !(_inBareArgs > 0 && NamedArgAhead());
+
     /// `greet "world"`, `add 1, 2`, `http.get url timeout: 2s` (named args need no comma)
     (List<Expr> Args, List<NamedArg> Named) BareArgs()
     {
         var args = new List<Expr>();
         var named = new List<NamedArg>();
+        _inBareArgs++;
         Arg(args, named);
         while (Match(",") || NamedArgAhead()) Arg(args, named);
+        _inBareArgs--;
         return (args, named);
     }
 
     Expr Postfix()
     {
         var e = Primary();
-        if (e is Ident bare && StartsArgument(Peek()) && !LambdaAhead())
+        if (e is Ident bare && StartsBareCall())
         {
             var (a, n) = BareArgs();
             return new Call(bare.Line, bare.Name, a) { Named = n };
@@ -497,7 +546,7 @@ public class Parser(List<Token> tokens)
                 int l = Next().Line;
                 var name = Peek().Type is Tok.Ident or Tok.Keyword ? Next().Text : throw new VibeError("expected a member name after '.'", l);
                 if (At("(")) { var (a, n) = Args(); e = new Member(l, e, name, a) { Named = n }; }
-                else if (StartsArgument(Peek())) { var (a, n) = BareArgs(); return new Member(l, e, name, a) { Named = n }; }
+                else if (StartsBareCall()) { var (a, n) = BareArgs(); return new Member(l, e, name, a) { Named = n }; }
                 else e = new Member(l, e, name, null);
             }
             else return e;
@@ -562,6 +611,12 @@ public class Parser(List<Token> tokens)
             case "nah": case "false": case "cap": case "L": return new Lit(t.Line, false, VType.Bool);
             case "maybe": return new Lit(t.Line, Maybe.Instance, VType.Bool);
             case "idk": case "null": return new Lit(t.Line, null, VType.Vibe);
+            // int(x), float(x), string(x), bool(x), json(x): explicit conversion, like vibe<int>(x)
+            case "int" or "float" or "string" or "bool" or "json" when At("("):
+                Next();
+                var converted = Expression();
+                Expect(")");
+                return new Cast(t.Line, VType.Parse(t.Text)!, converted);
             case "vibe" when At("<"):
                 Next();
                 var to = ParseType();

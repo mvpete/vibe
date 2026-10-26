@@ -1,6 +1,8 @@
 #prompt {
     Files. Paths are relative to the current working directory. Text is UTF-8.
     Reading a missing file throws an error naming the path. Writing creates parent folders.
+    write and append store text exactly as given: to add a line, end it with "\n" yourself.
+    lines splits on line breaks and drops a trailing empty line; a missing file reads as [].
 }
 
 flex native string read(string path)

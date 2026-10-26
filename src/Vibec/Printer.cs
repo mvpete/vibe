@@ -71,7 +71,10 @@ public sealed class Printer
                 Block($"while {T(w.Cond)}", w.Body);
                 break;
             case For f:
-                Block($"for {f.Var} in {T(f.Iter)}", f.Body);
+                Block($"for {(f.DeclType != null ? f.DeclType + " " : "")}{f.Var} in {T(f.Iter)}", f.Body);
+                break;
+            case CFor cf:
+                Block($"for ({(cf.Init != null ? Inline(cf.Init) : "")}; {(cf.Cond != null ? T(cf.Cond) : "")}; {(cf.Step != null ? Inline(cf.Step) : "")})", cf.Body);
                 break;
             case Repeat r:
                 Block($"repeat {T(r.Count)} times", r.Body);
@@ -155,6 +158,16 @@ public sealed class Printer
     }
 
     public static string Signature(FnDecl fn) => new Printer().Sig(fn);
+
+    /// A statement on one line, notes dropped (for a C-style for's init and step).
+    static string Inline(Stmt s)
+    {
+        var p = new Printer();
+        p.Stmt(s);
+        var text = p._out.ToString().Trim();
+        int note = text.IndexOf("    # ", StringComparison.Ordinal);
+        return note >= 0 ? text[..note] : text;
+    }
 
     string Sig(FnDecl fn)
     {

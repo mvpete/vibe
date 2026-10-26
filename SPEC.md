@@ -148,6 +148,43 @@ Strings: `.length`, `.upper()`, `.lower()`, `.trim()`, `.split(sep)`, `.contains
 `.endsWith(s)`, `.replace(a, b)`, `.indexOf(s)`.
 Anything else is sent to the vibe pass, which decides what it means.
 
+### Loops
+
+Every combination works: `for` or `foreach`, with or without parentheses, `x` / `var x` / `let x` /
+`string x`, and `in`, `of` or `:`.
+
+```vibe
+for item in items { }
+foreach (var item : items) { }
+for (string s of names) { }          # a typed variable converts each element (strongly-loose)
+for (int i = 0; i < 10; i++) { }     # C-style
+for i in range 5 { }
+```
+
+### Modules
+
+A project is a folder. Each `.vibe` file is a module named after the file, and the file you
+compile is the entry point.
+
+```
+scores/
+├── main.vibe       use game, use storage, use ui; the statements that run
+├── game.vibe       public int score(list<int> rolls) { ... }
+├── storage.vibe    contract-only: public void save(string name, int points)
+└── ui.vibe
+```
+
+- `use storage` loads `storage.vibe` next to the entry file, or failing that the standard library.
+  A project file with a standard library name shadows it, with a warning.
+- Members are private unless marked `public` (or `flex`). Calls across modules are checked against
+  the other module's signatures, including named arguments and defaults.
+- Modules other than the entry only declare things: functions, variables, prompts, `use`. Their
+  variables can be read from outside but not assigned.
+- A module's top-of-file `#prompt` describes it. Semantic resolution uses that, plus the signatures of
+  the modules it uses, when writing its contract bodies.
+- Cycles are errors: `circular vibes: game uses ui uses game`.
+- For now the backend produces one output file, with one class or namespace per module.
+
 ### Named arguments and defaults
 
 ```vibe
@@ -207,7 +244,7 @@ your own code, and you get a warning. Use `--dump-ast` to read it.
 
 ### Explicit conversion
 
-`vibe<T>(x)` converts explicitly, using the same rules as implicit coercion: `vibe<int>("twelve")`,
+`int(x)`, `float(x)`, `string(x)`, `bool(x)`, `json(x)` and `vibe<T>(x)` convert explicitly, using the same rules as implicit coercion: `vibe<int>("twelve")`,
 `vibe<list<string>>("red, green and blue")`. It's also how `--dump-ast` writes runtime and
 deferred coercions, so its output is valid Vibe.
 

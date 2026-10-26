@@ -62,6 +62,8 @@ public sealed class PromptPass(IModelProvider provider)
         ["vibecheck"] = "- `vibecheck cond` is an assertion: if false, write `vibe check failed: <the condition as written>` to stderr and exit with code 1.",
         ["try"] = "- `try { } catch (e) { }` catches any error raised in the block; `e` is the error's message as a string.",
         ["for-int"] = "- `for i in n` (n an int) iterates i = 0 .. n-1.",
+        ["typed-for"] = "- `for T x in xs` converts each element to T with the vibe<T> rules as it goes.",
+        ["c-for"] = "- `for (init; cond; step)` is a C-style loop: init once, check cond before each pass, run step after each pass (including after continue).",
         ["repeat"] = "- `repeat n times { }` runs the block n times.",
         ["global-prompt"] = "- `#prompt` lines at the very top are global instructions from the programmer that apply to the whole program. Follow them.",
         ["prompt"] = "- A `#prompt` statement in the middle of code is a step to perform at exactly that point, described in natural language.",
@@ -79,6 +81,7 @@ public sealed class PromptPass(IModelProvider provider)
         ["assume"] = "- `assume cond` is a promise from the programmer that cond is true here. Don't check it; you may rely on it.",
         ["json"] = "- `json` holds parsed JSON (object, array, string, number, bool or null). `x.field` and `x[i]` read into it and are json too (missing → null). Converting a string to json parses it (invalid JSON raises an error); converting json to another type reads it as that type.",
         ["std"] = "- `module.function(...)` calls into Vibe's standard library. Implement each with the target's idiomatic standard library, following its contract under \"Standard library\" exactly: parameters, defaults, units, what throws.",
+        ["modules"] = "- The program is split into modules, one section each (dependencies first, entry last). Keep that structure in the output: each module becomes its own class, namespace or object named after the module; `storage.save(...)` calls module storage's `save`. Only `public` members are used from outside their module. Module variables are initialised before the entry runs, in dependency order. Only the entry section runs statements.",
         ["vibed-call"] ="- Calls and members with a `# name: ...` note aren't built-ins; the note says what they do. Implement them.",
     };
 

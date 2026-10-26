@@ -23,7 +23,6 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
 
     public async Task<int> CompileAsync(CompileOptions o, CancellationToken ct)
     {
-        var source = File.ReadAllText(o.SourcePath);
         var dir = Path.GetDirectoryName(Path.GetFullPath(o.SourcePath))!;
         var name = Path.GetFileNameWithoutExtension(o.SourcePath);
         // toolchain first: you should know before paying for codegen
@@ -49,44 +48,49 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
             toolchain = found;
         }
 
+        // the entry file plus every module it uses, dependencies first
+        var (modules, loadWarnings) = ModuleLoader.Load(o.SourcePath);
+        foreach (var w in loadWarnings) log.WriteLine($"  warning: {w}");
+        if (modules.Count > 1) Step("modules", string.Join(" → ", modules.Select(m => m.Name)));
+
         // the static and vibe passes alternate: answers can raise new questions
         // (a generated function may call another undefined one), so re-run on a fresh parse
-        var knowledge = new Knowledge(o.Fresh ? null : Path.Combine(intDir, "vibecache.json"));
-        List<Stmt> program;
-        StaticPass pass;
+        var knowledge = new Knowledge(Path.Combine(intDir, "vibecache.json"), fresh: o.Fresh);
+        ProjectAnalysis analysis;
         var vibe = new VibePass(provider);
         for (int round = 1; ; round++)
         {
-            program = Parser.ParseSource(source);
-            pass = new StaticPass(knowledge) { Final = round == MaxVibeRounds };
-            pass.Run(program);
-            if (round == 1) Step("parse", $"{program.Count} top-level statements");
-            if (pass.Questions.Count == 0) break;
+            analysis = ProjectAnalysis.Run(modules, knowledge, final: round == MaxVibeRounds);
+            if (round == 1) Step("parse", $"{analysis.Modules.Sum(m => m.Program.Count)} top-level statements");
+            var questions = analysis.Questions;
+            if (questions.Count == 0) break;
 
-            Step("analysis", $"{pass.Questions.Count} thing(s) need semantic resolution");
-            var outcome = await vibe.AnswerAsync(pass.Questions, knowledge, source, ct);
+            Step("analysis", $"{questions.Count} thing(s) need semantic resolution");
+            var outcome = await vibe.AnswerAsync(questions, knowledge, analysis.Sources, ct);
             knowledge.Save();
             Step("resolution", $"{outcome.Resolved} resolved, {outcome.Rejected} unresolved ({provider.Name}/{provider.Model}, {outcome.InputTokens}+{outcome.OutputTokens} tokens)");
         }
 
-        foreach (var d in pass.Diagnostics.Where(d => !d.IsError)) log.WriteLine($"  warning: {d}");
-        if (pass.HasErrors)
+        var diagnostics = analysis.Diagnostics;
+        foreach (var d in diagnostics.Where(d => !d.IsError)) log.WriteLine($"  warning: {d}");
+        if (analysis.HasErrors)
         {
-            foreach (var d in pass.Diagnostics.Where(d => d.IsError)) log.WriteLine($"  error: {d}");
+            foreach (var d in diagnostics.Where(d => d.IsError)) log.WriteLine($"  error: {d}");
             log.WriteLine("these rules don't check out. fix the errors above.");
             return 1;
         }
 
-        var annotated = Printer.Print(program.Concat(pass.Generated));
+        var annotated = analysis.Annotated();
         if (o.DumpAst) Intermediate(Path.Combine(intDir, $"{name}.ast.vibe"), annotated);
 
-        var library = pass.UsedStd.Count == 0 ? null : string.Join("\n\n", pass.UsedStd.OrderBy(u => u.Key).Select(u =>
+        var usedStd = analysis.UsedStd;
+        var library = usedStd.Count == 0 ? null : string.Join("\n\n", usedStd.OrderBy(u => u.Key).Select(u =>
         {
             var module = StdLib.Get(u.Key)!;
             var signatures = string.Join("\n", u.Value.Select(f => Printer.Signature(module.Functions[f])));
             return $"### {module.Name}\n{module.Prompt}\n```vibe\n{signatures}\n```";
         }));
-        var (ir, promptReply) = await new PromptPass(provider).WriteAsync(annotated, pass.Features, target, toolchain, library, ct);
+        var (ir, promptReply) = await new PromptPass(provider).WriteAsync(annotated, analysis.Features, target, toolchain, library, ct);
         Step("lowering", $"specification ready ({promptReply.OutputTokens} tokens)");
         Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.prompt.md"), ir);
 

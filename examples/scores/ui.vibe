@@ -1,0 +1,11 @@
+#prompt talks to the player in the terminal
+
+public string askName() {
+    return %ask the player for their name%
+}
+
+public void show(list<string> lines) {
+    foreach (string line : lines) {
+        print "  {$line}"
+    }
+}

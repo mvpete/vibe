@@ -10,10 +10,16 @@
 - Duration literals: `500ms`, `2s`, `1.5m`, `1h`.
 - Contracts: functions without bodies get their bodies written by semantic resolution.
 - `public` / `flex`, `use x as y`.
+- Project modules: `use storage` loads `storage.vibe`, with privacy, cross-module type checking, declaration-only
+  library modules and cycle detection. Contract bodies are written from the module's prompt and the modules it uses.
+- Every `for` spelling: `for`/`foreach`, optional parens, typed or `var` loop variables, `in`/`of`/`:`, plus C-style `for (;;)`.
+- `int(x)`, `float(x)`, `string(x)`, `bool(x)`, `json(x)` conversions.
 
 ### Compiler
 - Every compile reports its model calls, tokens (cached input priced separately) and cost, using prices from OpenAI's pricing page (`IModelProvider.GetPriceAsync`); override in appsettings.json.
 - Default model is now `gpt-6-luna`.
+- Fixed: contract and generated-function questions now send their context (signature, module prompt) to the model.
+- A contract's cache key includes its context, so editing a module's prompt re-generates its bodies. `--fresh` now replaces the cache.
 - Uncaught errors in generated programs print `error: <message>` and exit 1, instead of a stack trace.
 
 ## 0.1.0: the discovery

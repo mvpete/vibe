@@ -1,0 +1,11 @@
+#prompt the rules of a tiny dice game: rolls over 3 score points
+
+public const int maxScore = 60
+
+public int score(list<int> rolls) {
+    return rolls.filter(r => r > 3).length * pointsPerRoll()
+}
+
+int pointsPerRoll() {
+    return 10
+}

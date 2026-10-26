@@ -53,10 +53,11 @@ public sealed class Knowledge
     readonly string? _path;
     Dictionary<string, Answer> _answers = [];
 
-    public Knowledge(string? path)
+    /// fresh: start empty (but still save), so --fresh replaces the cache instead of ignoring it.
+    public Knowledge(string? path, bool fresh = false)
     {
         _path = path;
-        if (path != null && File.Exists(path))
+        if (!fresh && path != null && File.Exists(path))
         {
             try { _answers = JsonSerializer.Deserialize<Dictionary<string, Answer>>(File.ReadAllText(path)) ?? []; }
             catch (JsonException) { _answers = []; } // a corrupt cache just means re-asking
@@ -71,6 +72,9 @@ public sealed class Knowledge
     {
         if (_path != null) File.WriteAllText(_path, JsonSerializer.Serialize(_answers, JsonOpts));
     }
+
+    public static string Hash(string text) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)))[..12].ToLowerInvariant();
 
     public static string CoerceKey(JsonNode? value, VType to, string? context) =>
         $"coerce:{to}:{value?.ToJsonString() ?? "null"}" + (context != null ? $" ({context})" : "");
