@@ -75,7 +75,7 @@ Programming is a word for something people used to do. This is writing rules. Th
 that the rules then become a program is a coincidence we are comfortable with.
 
 *"You still use AI for most of the work."*
-A calculator does most of the arithmetic. Nobody says the accountant didn't do the accounts.
+You probably use a calculator for long division too. We don't ask questions. Neither should you.
 
 *"Strongly-loose typing is a contradiction."*
 So is "jumbo shrimp". Everyone orders it anyway.
