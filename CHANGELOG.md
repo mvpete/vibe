@@ -16,6 +16,8 @@
 - `int(x)`, `float(x)`, `string(x)`, `bool(x)`, `json(x)` conversions.
 - `print ... end: ""` / `sep: ", "`, and `write` / `output` (print without a newline).
 - `i++`, `i--`, `++i`, `--i` as expressions. FTFY declares an undeclared counter (`int i = 0`) before its loop.
+- More FTFY rules: wrong case on names and calls, the loop index you meant (`for i in range 5 { print n }`),
+  a single `=` in a condition, member typos on lists and strings (`xs.lenght`). The criteria are in SPEC.md.
 - Fixed: anything after the first expression inside `${...}` was silently ignored; it's now an error.
 - FTFY: obvious mistakes (typos of names in scope, loops that read the list instead of the item, stray `}` after an
   interpolation) are fixed in your source file. `--no-ftfy` warns instead; `vibec undo` / `vibec nvm` puts it back.

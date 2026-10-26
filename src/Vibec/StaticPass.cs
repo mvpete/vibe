@@ -310,6 +310,7 @@ public sealed class StaticPass(Knowledge knowledge)
 
             case For f:
                 f.Iter = Check(f.Iter);
+                MeantTheLoopVariable(f);
                 var it = f.Iter.Type;
                 if (it.IsList) f.VarType = it.Elem!;
                 else if (it == VType.Str) f.VarType = VType.Str;
@@ -541,6 +542,23 @@ public sealed class StaticPass(Knowledge knowledge)
         // undeclared: either a typo of something in scope, or a word with an obvious meaning
         // where it's used (`while infinity`, `float x = pi`)
         var candidates = VisibleNames().ToList();
+
+        // same name, different case (Total vs total): you know what I mean
+        var sameName = candidates.Where(n => string.Equals(n, id.Name, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (sameName.Count == 1)
+        {
+            Fixes.Add(new Fix(id.Line, id.Name, sameName[0], $"'{id.Name}' isn't declared; you meant '{sameName[0]}'", All: true));
+            id.RenamedFrom = id.Name;
+            id.Name = sameName[0];
+            id.Type = Lookup(sameName[0])!;
+            return id;
+        }
+        if (FunctionByCase(id.Name) is { Params.Count: 0 } caseFn)
+        {
+            Fixes.Add(new Fix(id.Line, id.Name, caseFn.Name, $"'{id.Name}' isn't defined; you meant '{caseFn.Name}'", All: true));
+            _expected = expected;
+            return CheckCall(new Call(id.Line, caseFn.Name, []));
+        }
         var key = Knowledge.NameKey(id.Name, candidates, expected);
         if (knowledge.TryGet(key, out var ans))
         {
@@ -567,6 +585,46 @@ public sealed class StaticPass(Knowledge knowledge)
         id.Type = expected ?? VType.Vibe;
         return id;
     }
+
+    static readonly HashSet<string> IndexNames = ["i", "j", "k", "n", "x", "y", "idx", "index", "num", "number"];
+
+    /// A counting loop whose variable is never used, and whose body uses exactly one undeclared
+    /// index-like name: that name is the loop variable. Renamed before the body is checked.
+    void MeantTheLoopVariable(For f)
+    {
+        bool counting = f.Iter is Call { Name: "range" } || f.Iter.Type == VType.Int || f.Iter.Type == VType.ListOf(VType.Int);
+        if (!counting) return;
+        var idents = AllExprs(f.Body).OfType<Ident>().ToList();
+        if (idents.Any(x => x.Name == f.Var)) return;
+
+        var declaredInside = All(f.Body).OfType<Decl>().Select(d => d.Name)
+            .Concat(All(f.Body).OfType<For>().Select(x => x.Var))
+            .Concat(All(f.Body).OfType<TryCatch>().Select(t => t.ErrName))
+            .Concat(AllExprs(f.Body).OfType<Lambda>().SelectMany(l => l.Params))
+            .Concat(AllExprs(f.Body).OfType<IncDec>().Select(x => x.Target).OfType<Ident>().Select(x => x.Name))
+            .ToHashSet();
+        var unknown = idents.Select(x => x.Name).Distinct()
+            .Where(n => Lookup(n) == null && !_functions.ContainsKey(n) && !declaredInside.Contains(n)
+                        && !_modules.ContainsKey(n) && StdLib.Get(n) == null)
+            .ToList();
+        if (unknown is not [var meant] || !IndexNames.Contains(meant)) return;
+
+        foreach (var x in idents.Where(x => x.Name == meant))
+        {
+            Fixes.Add(new Fix(x.Line, meant, f.Var, $"the loop counts with {f.Var}, which is never used; you meant {f.Var}", All: true));
+            x.RenamedFrom = meant;
+            x.Name = f.Var;
+        }
+    }
+
+    FnDecl? FunctionByCase(string name)
+    {
+        var matches = _functions.Values.Where(f => string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase) && f.Name != name).ToList();
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
+    static readonly string[] ListMembers = ["length", "count", "push", "append", "add", "pop", "contains", "includes", "indexOf", "join", "reverse", "sort", "map", "select", "filter", "where", "any", "all", "some", "every", "find", "forEach", "each"];
+    static readonly string[] StringMembers = ["length", "upper", "lower", "trim", "strip", "toUpperCase", "toLowerCase", "split", "contains", "includes", "startsWith", "endsWith", "replace", "indexOf"];
 
     Expr CheckIncDec(IncDec inc)
     {
@@ -661,6 +719,13 @@ public sealed class StaticPass(Knowledge knowledge)
             Bind(fn, c.Args, c.Named, c.Line, fn.Name);
             c.Type = fn.Ret;
             return c;
+        }
+
+        if (!Builtins.ContainsKey(c.Name) && FunctionByCase(c.Name) is { } byCase)
+        {
+            Fixes.Add(new Fix(c.Line, c.Name, byCase.Name, $"'{c.Name}' isn't defined; you meant '{byCase.Name}'", All: true));
+            _expected = expected;
+            return CheckCall(new Call(c.Line, byCase.Name, c.Args) { Named = c.Named });
         }
 
         for (int k = 0; k < c.Args.Count; k++) c.Args[k] = Check(c.Args[k]);
@@ -820,6 +885,19 @@ public sealed class StaticPass(Knowledge knowledge)
         if (recv.IsDynamic) { m.Type = recv; return m; } // dynamic: anything goes at runtime; json.field is json
 
         if (KnownMember(m, recv) is { } known) { m.Type = known; return m; }
+
+        // xs.lenght, name.uper(): one or two keystrokes from a member everyone agrees on
+        var members = recv.IsList ? ListMembers : recv == VType.Str ? StringMembers : [];
+        if (Ftfy.Closest(m.Name, members) is { } meant)
+        {
+            var corrected = new Member(m.Line, m.Target, meant, m.Args) { Named = m.Named };
+            if (KnownMember(corrected, recv) is { } type)
+            {
+                Fixes.Add(new Fix(m.Line, "." + m.Name, "." + meant, $"a {recv} has no '{m.Name}'; you meant '{meant}'", All: true));
+                corrected.Type = type;
+                return corrected;
+            }
+        }
 
         var argTypes = m.Args?.Select(a => a is Lambda l ? LambdaSig(l) : a.Type).ToList();
         var key = Knowledge.MemberKey(recv, m.Name, argTypes);

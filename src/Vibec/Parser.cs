@@ -3,12 +3,15 @@ namespace Vibec;
 /// Recursive-descent parser. Statements end at a newline or ';'.
 public class Parser(List<Token> tokens)
 {
+    /// FTFY fixes noticed while parsing (a single = in a condition), when someone's collecting them.
+    public List<Fix>? Fixes { get; init; }
+
     int _pos;
     bool _inPattern;
     int _inBareArgs; // inside `f a, b`: `x name: v` is the arg x then a named arg for f, not x(name: v) // switch patterns: `name =>` is a pattern, not a lambda
 
     public static List<Stmt> ParseSource(string src) => new Parser(Lexer.Lex(src)).ParseProgram();
-    public static List<Stmt> ParseSource(string src, List<Fix> fixes) => new Parser(Lexer.Lex(src, fixes)).ParseProgram();
+    public static List<Stmt> ParseSource(string src, List<Fix> fixes) => new Parser(Lexer.Lex(src, fixes)) { Fixes = fixes }.ParseProgram();
 
     Token Peek(int ahead = 0) => tokens[Math.Min(_pos + ahead, tokens.Count - 1)];
     Token Next() => tokens[_pos++];
@@ -148,7 +151,7 @@ public class Parser(List<Token> tokens)
         else if (Match("if")) return IfStmt(line);
         else if (MatchAny("switch", "vibeshift")) return SwitchStmt(line);
         else if (Match("maincharacter")) { var body = Block(); SkipNewlines(); return new MainBlock(line, body); }
-        else if (Match("while")) { var c = Expression(); return new While(line, c, Block()); }
+        else if (Match("while")) { var c = Condition(); return new While(line, c, Block()); }
         else if (MatchAny("for", "foreach")) return ForStmt(line);
         else if (Match("repeat"))
         {
@@ -331,9 +334,19 @@ public class Parser(List<Token> tokens)
         return new FnDecl(line, name, ps, ret, body) { Public = isPublic };
     }
 
-    If IfStmt(int line)
+    /// `if x = 5` assigns in every C-family language and is a bug in all of them. you meant ==.
+    Expr Condition()
     {
         var cond = Expression();
+        if (!At("=")) return cond;
+        var eq = Next();
+        Fixes?.Add(new Fix(eq.Line, "=", "==", "a single = in a condition would assign; you meant ==", Column: eq.Col));
+        return new Binary(eq.Line, "==", cond, Expression());
+    }
+
+    If IfStmt(int line)
+    {
+        var cond = Condition();
         var then = Block();
         List<Stmt>? els = null;
 
@@ -401,7 +414,7 @@ public class Parser(List<Token> tokens)
             init = (typeLen > 0 && Peek(typeLen).Type == Tok.Ident) || At("var") || At("let") ? Declaration(line) : SimpleStatement(line);
         }
         ExpectSemicolon();
-        Expr? cond = AtSemicolon() ? null : Expression();
+        Expr? cond = AtSemicolon() ? null : Condition();
         ExpectSemicolon();
         Stmt? step = At(")") ? null : SimpleStatement(line);
         Expect(")");

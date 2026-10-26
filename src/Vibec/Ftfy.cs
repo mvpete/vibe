@@ -4,7 +4,8 @@ namespace Vibec;
 
 /// A "you know what I mean" error the compiler is confident about: on this line, `Old` should be `New`.
 /// With Insert, New goes on a line of its own before Line (Old is unused).
-public sealed record Fix(int Line, string Old, string New, string Why, string? File = null, bool Insert = false)
+/// With Column, Old must sit exactly there. With All, every whole-word Old on the line is replaced.
+public sealed record Fix(int Line, string Old, string New, string Why, string? File = null, bool Insert = false, int? Column = null, bool All = false)
 {
     public override string ToString() =>
         $"{(File != null ? File + " " : "")}line {Line}: " + (Insert ? $"+ {New}" : $"{Old} → {New}") + $" ({Why})";
@@ -30,13 +31,20 @@ public static class Ftfy
                 applied.Add(fix);
                 continue;
             }
+            if (fix.Column is int c)
+            {
+                if (c + fix.Old.Length > lines[i].Length || string.CompareOrdinal(lines[i], c, fix.Old, 0, fix.Old.Length) != 0) continue;
+                lines[i] = lines[i][..c] + fix.New + lines[i][(c + fix.Old.Length)..];
+                applied.Add(fix);
+                continue;
+            }
             // whole words for names (lukcy, res.ticker); exact text otherwise (string literals)
             var pattern = Regex.Escape(fix.Old);
             if (Regex.IsMatch(fix.Old, @"^\w")) pattern = @"(?<![\w])" + pattern;
             if (Regex.IsMatch(fix.Old, @"\w$")) pattern += @"(?![\w])";
             var re = new Regex(pattern);
             if (!re.IsMatch(lines[i])) continue;
-            lines[i] = re.Replace(lines[i], fix.New.Replace("$", "$$"), 1);
+            lines[i] = re.Replace(lines[i], fix.New.Replace("$", "$$"), fix.All ? -1 : 1);
             applied.Add(fix);
         }
         return (string.Join('\n', lines), applied);
@@ -78,6 +86,32 @@ public static class Ftfy
         var remaining = Directory.GetFiles(backupDir, $"{name}.*.before.vibe").Length;
         return $"restored {Path.GetFileName(path)} to before FTFY touched it" +
                (remaining > 0 ? $" ({remaining} earlier FTFY run(s) can still be undone)" : "");
+    }
+
+    /// Optimal string alignment distance: edits, counting a swap of neighbours as one (lenght → length).
+    public static int Distance(string a, string b)
+    {
+        var d = new int[a.Length + 1, b.Length + 1];
+        for (int i = 0; i <= a.Length; i++) d[i, 0] = i;
+        for (int j = 0; j <= b.Length; j++) d[0, j] = j;
+        for (int i = 1; i <= a.Length; i++)
+            for (int j = 1; j <= b.Length; j++)
+            {
+                int cost = char.ToLowerInvariant(a[i - 1]) == char.ToLowerInvariant(b[j - 1]) ? 0 : 1;
+                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+                    d[i, j] = Math.Min(d[i, j], d[i - 2, j - 2] + 1);
+            }
+        return d[a.Length, b.Length];
+    }
+
+    /// The single closest candidate within reach, or null if none (or several tie).
+    public static string? Closest(string name, IEnumerable<string> candidates)
+    {
+        int reach = name.Length <= 4 ? 1 : 2;
+        var scored = candidates.Distinct().Select(c => (c, d: Distance(name, c))).Where(x => x.d > 0 && x.d <= reach).OrderBy(x => x.d).ToList();
+        if (scored.Count == 0 || (scored.Count > 1 && scored[1].d == scored[0].d)) return null;
+        return scored[0].c;
     }
 
     /// Plain strings with `${x}` / `{$x}`: a `}` straight after an interpolation closes is a typo.

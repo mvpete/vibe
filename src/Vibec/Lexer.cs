@@ -2,7 +2,7 @@ namespace Vibec;
 
 public enum Tok { Ident, Keyword, Int, Float, Duration, String, Interp, Prompt, InlinePrompt, Op, Newline, Eof }
 
-public record Token(Tok Type, string Text, int Line, object? Value = null);
+public record Token(Tok Type, string Text, int Line, object? Value = null, int Col = 0);
 
 public class VibeError(string message, int line = 0)
     : Exception(line > 0 ? $"line {line}: {message}" : message)
@@ -38,18 +38,20 @@ public static class Lexer
     public static List<Token> Lex(string src, List<Fix>? fixes = null)
     {
         var tokens = new List<Token>();
-        int i = 0, line = 1, depth = 0;
+        int i = 0, line = 1, depth = 0, lineStart = 0, col = 0;
 
-        void Push(Tok type, string text, object? value = null) => tokens.Add(new Token(type, text, line, value));
+        void Push(Tok type, string text, object? value = null) => tokens.Add(new Token(type, text, line, value, col));
 
         while (i < src.Length)
         {
             char c = src[i];
+            col = i - lineStart;
 
             if (c == '\n')
             {
                 if (depth == 0 && tokens.Count > 0 && tokens[^1].Type != Tok.Newline) Push(Tok.Newline, "\\n");
                 line++; i++;
+                lineStart = i;
                 continue;
             }
             if (char.IsWhiteSpace(c)) { i++; continue; }
@@ -79,7 +81,7 @@ public static class Lexer
                     {
                         if (src[i] == '{') depth2++;
                         else if (src[i] == '}') depth2--;
-                        if (src[i] == '\n') line++;
+                        if (src[i] == '\n') { line++; lineStart = i + 1; }
                         i++;
                     }
                     if (depth2 > 0) throw new VibeError("this #prompt block never closes", start);
@@ -108,7 +110,7 @@ public static class Lexer
                 i += 2;
                 while (i < src.Length && !(src[i] == '*' && i + 1 < src.Length && src[i + 1] == '/'))
                 {
-                    if (src[i] == '\n') line++;
+                    if (src[i] == '\n') { line++; lineStart = i + 1; }
                     i++;
                 }
                 i += 2;
@@ -133,7 +135,7 @@ public static class Lexer
                     }
                     else
                     {
-                        if (src[i] == '\n') line++;
+                        if (src[i] == '\n') { line++; lineStart = i + 1; }
                         sb.Append(src[i]);
                     }
                     i++;
@@ -144,7 +146,7 @@ public static class Lexer
                 if (!interp && fixes != null && Ftfy.WithoutStrayBraces(src[quoteAt..i]) is { } unstrayed)
                     fixes.Add(new Fix(start, src[quoteAt..i], unstrayed, "stray } after an interpolation"));
                 if (!interp && PlainInterpolation(text) is { } converted) { interp = true; text = converted; }
-                tokens.Add(new Token(interp ? Tok.Interp : Tok.String, text, start, text));
+                tokens.Add(new Token(interp ? Tok.Interp : Tok.String, text, start, text, col));
                 continue;
             }
 

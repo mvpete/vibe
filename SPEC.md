@@ -254,14 +254,27 @@ deferred coercions, so its output is valid Vibe.
 ### FTFY
 
 When the compiler is sure what you meant, it fixes your source file, prints each fix as an
-`ftfy` line, and compiles the corrected version:
+`ftfy` line, and compiles the corrected version.
 
-| You wrote | FTFY | Because |
-|---|---|---|
-| `print lukcy` | `print lucky` | a typo of a name in scope (decided by semantic resolution) |
-| `for item in res { print res.ticker }` | `item.ticker` | the loop variable is never used, but the list's fields are |
-| `"${x}}"` | `"${x}"` | a stray `}` straight after an interpolation |
-| `say "${i++} ..."` with no `i` | adds `int i = 0` before the loop | a `++`/`--` on an undeclared name is a counter |
+The rule for every fix: **what you wrote can't be right, and there is exactly one sensible
+correction.** If it might be intentional, or more than one fix is plausible, you get an ordinary
+warning or error instead. These are all the rules:
+
+| Rule | Fires when | Fix | Decided by |
+|---|---|---|---|
+| Typo | An undeclared name is clearly a misspelling of a name in scope: `print lukcy` | `lucky` | semantic resolution (the target must be in scope) |
+| Wrong case | An undeclared name or call matches exactly one name in scope ignoring case: `Total`, `Greet()` | `total`, `greet()` | compiler |
+| Loop mix-up | `for item in res` where `res` is a list or json variable, `item` is never used in the body, and the body reads `res.field` | `item.field` | compiler |
+| The index you meant | A counting loop (`range`, an int, a list of ints) whose variable is never used, and whose body uses exactly one undeclared, index-like name (`i j k n x y idx index num number`): `for i in range 5 { print n }` | `print i` | compiler |
+| Forgotten counter | `++` / `--` on a name declared nowhere: `say "${i++}"` | `int i = 0` on its own line before the outermost loop it's in | compiler |
+| Assignment in a condition | A single `=` in an `if`, `while` or C-style `for` condition: `if x = 5` | `==`, only that character | compiler |
+| Member typo | A list or string member one or two keystrokes from exactly one known member: `xs.lenght`, `s.uper()` | `xs.length`, `s.upper()` | compiler |
+| Stray brace | A `}` straight after an interpolation closes in a plain string: `"${x}}"` | `"${x}"` | compiler |
+
+Fixes are small (one replacement, or one inserted line) and only apply if the exact text is still
+there; names match as whole words. Loose typing is not FTFY: `int five = "five"`, `while infinity`
+and generated functions change what your rules mean at compile time, with a warning, but never edit
+your file.
 
 Every FTFY run keeps a before/after copy in `.vibe-int/ftfy/`. `vibec undo file.vibe` (or
 `vibec nvm file.vibe`) restores the most recent one; run it again to go further back. Undo refuses
