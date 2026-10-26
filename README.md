@@ -295,6 +295,7 @@ Nothing is vibed. Everything is checked. You can read every step:
 .vibe-int/app.il.md                 the IL: your program, in no language in particular
 .vibe-int/app.rust.prompt.md        what the backend receives: the IL plus the target
 .vibe-int/app.rust.transcript.md    every backend attempt and build error
+.vibe-int/app.rust.lock.json        the pinned code (see below)
 .vibe-int/app.ast.vibe              your rules after semantic resolution (with --dump-ast)
 ```
 
@@ -314,6 +315,20 @@ IL, so it's one model call instead of two. You can also hand someone an `.il.md`
 build it for whatever they've got, without ever seeing Vibe.
 
 We believe this is a first.
+
+### Deterministic vibes
+
+Compile the same rules twice and you get the same program, byte for byte. The first time, the
+backend writes the code and vibec **pins** it. After that, as long as your rules and the target
+haven't changed, vibec skips the model entirely, rebuilds the pinned code, and ships it:
+
+```
+  lowering     reusing .vibe-int\greeter.il.md (your rules haven't changed)
+  backend      pinned code from 2026-10-26 08:49, rebuilt with dotnet 9.0.301 (no model call)
+```
+
+No model call means no cost, no waiting, and no surprises. Change a rule and it's written again
+(and pinned again). `--fresh` throws all of it away, if you miss the excitement.
 
 > Fine print: semantic resolution, lowering, and the backend are performed by a large
 > language model (OpenAI by default, or anything OpenAI-compatible, like a local Ollama).

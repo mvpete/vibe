@@ -24,6 +24,7 @@ int lucky = GenerateLuckyNumber()       # not defined anywhere: the compiler wri
 | **vibe pass** | One batched, structured model call answers the questions: literal coercions, undefined functions (it writes them, in Vibe), unknown methods, typos. Answers are cached in `.vibe-int/vibecache.json`. The static pass re-runs with the answers, up to 3 rounds. |
 | **lowering** | A model turns the annotated AST into the **IL**: numbered steps in program order, in neutral terms (standard output, input lines, exit codes, files, HTTP), naming no language or library. Every string the program prints must appear in it, or it's revised. Saved as `.vibe-int/<name>.il.md`, and reused until the annotated program changes. |
 | **backend prompt** | The compiler, not a model, adds the target (language, file, constraints, toolchain) to the IL: `.vibe-int/<name>.<target>.prompt.md`. |
+| **pinning** | Code that built and passed the checks is pinned to `.vibe-int/<name>.<target>.lock.json`, keyed by the IL and the target (language, file, constraints) and the backend's instructions. Next time the key matches, the pinned code is rebuilt with no model call; if it no longer builds, it's written again. |
 | **codegen** | A model implements the backend prompt. The output is built with the real toolchain; compiler errors, and any printed text the code leaves out, go back as follow-up turns until it's right (`--max-repairs`, default 3). |
 
 The backend only ever sees the backend prompt: never the Vibe source, never the AST.
@@ -432,7 +433,7 @@ vibec app.il.md -t rust                   compile an IL directly (write once, co
   --provider P      openai (default) | ollama
   --model M         default gpt-6-luna
   --base-url U      any OpenAI-compatible endpoint
-  --fresh           ignore the vibe cache
+  --fresh           re-ask everything: vibe cache, IL and pinned code
   --refresh         re-discover the toolchain recipe
   -y, --yes         approve a new toolchain recipe without asking
   --no-ftfy         warn about obvious mistakes instead of fixing them in the source
@@ -447,6 +448,7 @@ Layout, next to the source:
 .vibe-int/<name>.il.md                   the IL: target-neutral, reused across targets
 .vibe-int/<name>.<target>.prompt.md      exactly what the backend receives: the IL plus the target
 .vibe-int/<name>.<target>.transcript.md  every backend attempt and build error
+.vibe-int/<name>.<target>.lock.json      pinned code: same IL + same target = same code, no model call
 .vibe-int/<name>.ast.vibe                annotated AST, with --dump-ast
 .vibe-int/src/<name>-<target>/  generated source and build files; the build runs here
 bin/                            the deliverable: an executable, or the source for interpreted targets

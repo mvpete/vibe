@@ -46,6 +46,8 @@ First release. Rules run in order.
   interpolation) are fixed in your source file. `--no-ftfy` warns instead; `vibec undo` / `vibec nvm` puts it back.
 
 ### Compiler
+- Deterministic vibes: generated code is pinned (`.vibe-int/<name>.<target>.lock.json`). Same IL and target means the
+  pinned code is rebuilt with no model call; it's written again only when the rules or target change.
 - Pipeline: parse → static pass ⇄ semantic resolution → lowering → backend → build ⇄ repair.
 - Model-discovered toolchains for any target language, approved once and cached.
 - Build errors are fed back to the backend until it compiles.

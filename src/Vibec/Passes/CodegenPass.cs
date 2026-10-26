@@ -40,6 +40,9 @@ public sealed class CodegenPass(IModelProvider provider)
         }
         """)!;
 
+    /// Bump when the backend's instructions change, so pinned code is regenerated.
+    public const string Version = "codegen-1";
+
     /// The backend prompt: the IL plus the target. Written by the compiler, not a model.
     public static string BackendPrompt(string il, Recipe target, Toolchain? toolchain) => $"""
         # Target

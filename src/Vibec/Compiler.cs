@@ -148,6 +148,26 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
         return await BackendAsync(il, IlFile.NameOf(o.SourcePath), target, toolchain, intDir, srcDir, binDir, o, ct);
     }
 
+    /// Rebuilds pinned code if it's for this exact IL and target. Null means: generate it.
+    CodegenPass.Result? UsePin(Pin? pin, string hash, Recipe target, Toolchain? toolchain, string srcDir, string name, IReadOnlyList<string> printed)
+    {
+        if (pin == null) return null;
+        if (pin.Hash != hash) { Step("backend", "the IL or the target changed since the code was pinned; writing it again"); return null; }
+
+        var when = pin.Created.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
+        if (toolchain == null)
+        {
+            File.WriteAllText(Path.Combine(srcDir, target.FileName), pin.Code);
+            Step("backend", $"pinned code from {when} (no model call)");
+            return new CodegenPass.Result(pin.Code, pin.Notes, Built: false, Verified: false, Attempts: 0, null, "");
+        }
+
+        var build = Toolchains.Build(target, toolchain, pin.Code, srcDir, name);
+        if (!build.Ok) { Step("backend", $"the pinned code doesn't build with {toolchain.Display} any more; writing it again"); return null; }
+        Step("backend", $"pinned code from {when}, rebuilt with {toolchain.Display} (no model call)");
+        return new CodegenPass.Result(pin.Code, pin.Notes, Built: true, Verified: true, Attempts: 0, null, "");
+    }
+
     static IlFile? TryParseIl(string text)
     {
         try { return IlFile.Parse(text); } catch (VibeError) { return null; }
@@ -162,10 +182,25 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
         if (Directory.Exists(srcDir)) Directory.Delete(srcDir, recursive: true);
         Directory.CreateDirectory(srcDir);
 
-        var result = await new CodegenPass(provider).RunAsync(prompt, target, toolchain, o.MaxRepairs, srcDir, name, printed, m => Step("backend", m), ct);
-        if (result.Missing is { Count: > 0 } stillMissing)
-            log.WriteLine($"  warning: the generated code still doesn't contain this output text: {string.Join(", ", stillMissing.Select(m => $"\"{m}\""))}");
-        Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.transcript.md"), result.Transcript);
+        // same IL, same target: the pinned code, rebuilt, with no model call
+        var pinPath = Path.Combine(intDir, $"{name}.{target.Target}.lock.json");
+        var pinHash = Pin.HashFor(il.Body, target);
+        var result = o.Fresh ? null : UsePin(Pin.Load(pinPath), pinHash, target, toolchain, srcDir, name, printed);
+
+        if (result == null)
+        {
+            result = await new CodegenPass(provider).RunAsync(prompt, target, toolchain, o.MaxRepairs, srcDir, name, printed, m => Step("backend", m), ct);
+            if (result.Missing is { Count: > 0 } stillMissing)
+                log.WriteLine($"  warning: the generated code still doesn't contain this output text: {string.Join(", ", stillMissing.Select(m => $"\"{m}\""))}");
+            Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.transcript.md"), result.Transcript);
+
+            // only code that built (or couldn't be built here) and says everything it should gets pinned
+            if ((result.Built || !result.Verified) && result.Missing is not { Count: > 0 })
+            {
+                new Pin(pinHash, target.Target, target.FileName, result.Code, result.Notes, DateTimeOffset.Now).Save(pinPath);
+                Step("pinned", $"{Path.GetRelativePath(Environment.CurrentDirectory, pinPath)}: same rules, same code, from now on");
+            }
+        }
 
         var sourceFile = Path.Combine(srcDir, target.FileName);
         if (result.Verified && !result.Built)

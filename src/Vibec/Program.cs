@@ -22,7 +22,7 @@ const string Usage = """
       --dump-ast           also write the annotated AST to .vibe-int/<name>.ast.vibe
       --no-build           skip the toolchain build/repair loop
       --max-repairs <n>    build-repair rounds (default 3)
-      --fresh              re-ask everything and replace the vibe cache
+      --fresh              re-ask everything: the vibe cache, the IL and the pinned code
       --refresh            re-discover the target's toolchain recipe
       --no-ftfy            don't fix obvious mistakes in your .vibe files; just warn
       -y, --yes            approve a new toolchain recipe without asking
