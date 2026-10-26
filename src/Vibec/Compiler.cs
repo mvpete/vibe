@@ -82,13 +82,13 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
 
         var (ir, promptReply) = await new PromptPass(provider).WriteAsync(annotated, pass.Features, target, toolchain, ct);
         Step("lowering", $"specification ready ({promptReply.OutputTokens} tokens)");
-        Intermediate(Path.Combine(intDir, $"{name}.prompt"), ir);
+        Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.prompt.md"), ir);
 
         if (Directory.Exists(srcDir)) Directory.Delete(srcDir, recursive: true);
         Directory.CreateDirectory(srcDir);
 
         var result = await new CodegenPass(provider).RunAsync(ir, target, toolchain, o.MaxRepairs, srcDir, name, m => Step("backend", m), ct);
-        Intermediate(Path.Combine(intDir, $"{name}.transcript.md"), result.Transcript);
+        Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.transcript.md"), result.Transcript);
 
         var sourceFile = Path.Combine(srcDir, target.FileName);
         if (result.Verified && !result.Built)

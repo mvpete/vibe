@@ -165,9 +165,9 @@ your rules → parse → semantic resolution → lowering → backend → build 
 Nothing is vibed. Everything is checked. You can read every step:
 
 ```
-.vibe-int/app.prompt           the specification the backend receives
-.vibe-int/app.transcript.md    every backend attempt and build error
-.vibe-int/app.ast.vibe         your rules after semantic resolution (with --dump-ast)
+.vibe-int/app.rust.prompt.md        the specification the backend receives
+.vibe-int/app.rust.transcript.md    every backend attempt and build error
+.vibe-int/app.ast.vibe              your rules after semantic resolution (with --dump-ast)
 ```
 
 > Fine print: semantic resolution, lowering, and the backend are performed by a large

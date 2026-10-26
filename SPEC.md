@@ -199,9 +199,9 @@ Layout, next to the source:
 
 ```
 .vibe-int/vibecache.json        resolved vibes, so unchanged code isn't re-asked
-.vibe-int/<name>.prompt         the IR: exactly what the backend receives
-.vibe-int/<name>.transcript.md  every backend attempt and build error
-.vibe-int/<name>.ast.vibe       annotated AST, with --dump-ast
+.vibe-int/<name>.<target>.prompt.md      the IR: exactly what the backend receives
+.vibe-int/<name>.<target>.transcript.md  every backend attempt and build error
+.vibe-int/<name>.ast.vibe                annotated AST, with --dump-ast
 .vibe-int/src/<name>-<target>/  generated source and build files; the build runs here
 bin/                            the deliverable: an executable, or the source for interpreted targets
 ```

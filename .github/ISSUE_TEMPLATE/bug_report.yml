@@ -21,7 +21,7 @@ body:
     id: actual
     attributes:
       label: What happened instead
-      description: Paste vibec's output. .vibe-int/<name>.prompt and the transcript help a lot, as does --dump-ast.
+      description: Paste vibec's output. The .prompt.md and .transcript.md files in .vibe-int/ help a lot, as does --dump-ast.
       render: text
     validations:
       required: true
