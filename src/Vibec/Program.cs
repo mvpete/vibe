@@ -1,3 +1,4 @@
+using System.Reflection;
 using Vibec;
 using Vibec.Providers;
 
@@ -9,6 +10,7 @@ const string Usage = """
       vibec <file.il.md> -t <target>       compile an IL directly (write once, compile anywhere)
       vibec doctor [<target>] [--refresh] [--provider <p>] [--model <m>]
       vibec undo <file.vibe> [--force]     put back what FTFY changed (also: vibec nvm)
+      vibec --version
 
     options:
       -t, --target <t>     any language: csharp (default), rust, go, html, python, zig, ...
@@ -45,6 +47,10 @@ for (int i = 0; i < args.Length; i++)
             case "--dump-ast" or "--no-build" or "--fresh" or "--refresh" or "--no-ftfy" or "--force": opts[a[2..]] = "1"; break;
             case "-y" or "--yes": opts["yes"] = "1"; break;
             case "-h" or "--help": Console.WriteLine(Usage); return 0;
+            case "--version":
+                var version = typeof(Compiler).Assembly.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "?";
+                Console.WriteLine($"vibec {version.Split('+')[0]}");
+                return 0;
             default:
                 if (a.StartsWith('-')) { Console.Error.WriteLine($"unknown option {a}\n\n{Usage}"); return 64; }
                 positional.Add(a);

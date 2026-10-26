@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>vibec</AssemblyName>
+    <Version>0.0.1</Version>
     <RootNamespace>Vibec</RootNamespace>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -11,7 +12,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="std/*.vibe" LogicalName="std.%(Filename).vibe" />
-    <None Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('appsettings.json')" />
+    <!-- copied for local runs, never published: it holds your API key -->
+    <None Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" Condition="Exists('appsettings.json')" />
   </ItemGroup>
 
   <ItemGroup>

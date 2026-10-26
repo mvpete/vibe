@@ -2,6 +2,8 @@
 
 **Stop vibe coding in the gym. Start writing rules instead.**
 
+[![ci](https://github.com/mvpete/vibe/actions/workflows/ci.yml/badge.svg)](https://github.com/mvpete/vibe/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/mvpete/vibe?include_prereleases)](https://github.com/mvpete/vibe/releases)
 ![license: MIT](https://img.shields.io/badge/license-MIT-blue)
 ![.NET 9](https://img.shields.io/badge/.NET-9-512BD4)
 ![typing: strongly-loose](https://img.shields.io/badge/typing-strongly--loose-ff69b4)
@@ -301,11 +303,18 @@ We believe this is a first.
 
 ## Getting started
 
+**The quick way:** grab the zip for your platform from [Releases](https://github.com/mvpete/vibe/releases),
+unzip it, copy `appsettings.example.json` to `appsettings.json` next to `vibec`, put your key in it,
+and run `vibec doctor csharp`. No .NET install needed to run the compiler itself. (Compiling *to* C#
+still needs the .NET SDK, the same way compiling to Rust needs Rust.)
+
+**From source:**
+
 You need the [.NET 9 SDK](https://dot.net/download) and an OpenAI API key (or a local
 [Ollama](https://ollama.com)). Rules need a little help getting started. We don't talk about it.
 
 ```powershell
-git clone https://github.com/YOUR-USERNAME/vibe.git
+git clone https://github.com/mvpete/vibe.git
 cd vibe
 
 # put your key in appsettings.json (it's gitignored)

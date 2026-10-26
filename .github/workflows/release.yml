@@ -1,0 +1,86 @@
+name: release
+
+# Push a tag like v0.0.1 to build, test and publish vibec for every platform as a GitHub release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - run: dotnet test --configuration Release
+
+  publish:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, linux-x64, osx-x64, osx-arm64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Publish
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NAME="vibec-$VERSION-${{ matrix.rid }}"
+          echo "NAME=$NAME" >> "$GITHUB_ENV"
+          # self-contained single file: unzip and run, no .NET install needed for vibec itself
+          dotnet publish src/Vibec --configuration Release --runtime ${{ matrix.rid }} \
+            --self-contained true -p:PublishSingleFile=true -p:Version="$VERSION" \
+            --output "dist/$NAME"
+          rm -f "dist/$NAME"/*.pdb
+          cp README.md LICENSE SPEC.md VIBE.md CHANGELOG.md src/Vibec/appsettings.example.json "dist/$NAME/"
+          cp -r examples "dist/$NAME/examples"
+
+      - name: Zip
+        run: cd dist && zip -qr "../$NAME.zip" "$NAME"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}.zip
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: zips
+          merge-multiple: true
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # the section for this version: from its heading up to the next "## "
+          awk -v v="$VERSION" '
+            $0 ~ "^## " v "([^0-9.]|$)" { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Rules run in order." > notes.md
+          cat notes.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PRERELEASE=""
+          case "$VERSION" in 0.*) PRERELEASE="--prerelease";; esac
+          gh release create "$GITHUB_REF_NAME" zips/*.zip \
+            --title "Vibe $VERSION" --notes-file notes.md $PRERELEASE
