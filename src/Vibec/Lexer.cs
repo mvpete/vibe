@@ -34,7 +34,8 @@ public static class Lexer
          "+", "-", "*", "/", "%", "<", ">", "=", "!",
          "(", ")", "{", "}", "[", "]", ",", ".", ":", ";"];
 
-    public static List<Token> Lex(string src)
+    /// fixes: if given, "you know what I mean" typos found while lexing (stray braces) go here.
+    public static List<Token> Lex(string src, List<Fix>? fixes = null)
     {
         var tokens = new List<Token>();
         int i = 0, line = 1, depth = 0;
@@ -120,6 +121,7 @@ public static class Lexer
             {
                 if (interp) i++;
                 int start = line;
+                int quoteAt = i;
                 var sb = new System.Text.StringBuilder();
                 i++;
                 while (i < src.Length && src[i] != '"')
@@ -139,6 +141,8 @@ public static class Lexer
                 if (i >= src.Length) throw new VibeError("this string never ends. commitment issues?", start);
                 i++;
                 var text = sb.ToString();
+                if (!interp && fixes != null && Ftfy.WithoutStrayBraces(src[quoteAt..i]) is { } unstrayed)
+                    fixes.Add(new Fix(start, src[quoteAt..i], unstrayed, "stray } after an interpolation"));
                 if (!interp && PlainInterpolation(text) is { } converted) { interp = true; text = converted; }
                 tokens.Add(new Token(interp ? Tok.Interp : Tok.String, text, start, text));
                 continue;

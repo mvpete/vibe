@@ -14,6 +14,7 @@ public sealed class CompileOptions
     public bool Fresh { get; init; }
     public bool AssumeYes { get; init; }
     public bool RefreshToolchain { get; init; }
+    public bool Ftfy { get; init; } = true; // fix "you know what I mean" errors in the source; --no-ftfy just warns
 }
 
 /// Lex → parse → static pass ⇄ vibe pass → prompt pass → codegen (+ build/repair).
@@ -70,6 +71,26 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
             knowledge.Save();
             Step("resolution", $"{outcome.Resolved} resolved, {outcome.Rejected} unresolved ({provider.Name}/{provider.Model}, {outcome.InputTokens}+{outcome.OutputTokens} tokens)");
         }
+
+        // FTFY: "you know what I mean" errors get fixed in the .vibe itself, then re-checked
+        var fixes = analysis.Modules.SelectMany(m => m.Fixes.Select(f => (m.Module, Fix: f))).ToList();
+        if (fixes.Count > 0 && o.Ftfy)
+        {
+            int applied = 0;
+            foreach (var group in fixes.GroupBy(x => x.Module))
+                foreach (var fix in Ftfy.ApplyToFile(group.Key.Path, group.Select(x => x.Fix), Path.Combine(intDir, "ftfy")))
+                {
+                    Step("ftfy", fix.ToString());
+                    applied++;
+                }
+            if (applied > 0)
+            {
+                Step("ftfy", $"fixed {applied} thing(s) in your source. changed your mind? vibec undo {Path.GetFileName(o.SourcePath)}");
+                (modules, _) = ModuleLoader.Load(o.SourcePath);
+                analysis = ProjectAnalysis.Run(modules, knowledge, final: true);
+            }
+        }
+        else foreach (var (_, fix) in fixes) log.WriteLine($"  warning: {fix}. left as written (--no-ftfy)");
 
         var diagnostics = analysis.Diagnostics;
         foreach (var d in diagnostics.Where(d => !d.IsError)) log.WriteLine($"  warning: {d}");

@@ -74,13 +74,25 @@ to it. I call this **strongly-loose typing**. It is strong, and it is loose.
 
 ```vibe
 repeat 3 times {
-    print("again")
+    print "again"
 }
 
 for n in [1, 2, 3] {
-    print(f"number {n}")
+    print "number {$n}"
 }
 ```
+
+People disagree about how to write a loop, so Vibe accepts all of it. `for` or `foreach`, with or
+without parentheses, `in` or `of` or `:`, and a loop variable that's bare, `var`, or typed:
+
+```vibe
+for n in numbers { }
+foreach (var n of numbers) { }
+for (int n : numbers) { }               # a typed variable bends each element to fit
+for (int i = 0; i < 10; i++) { }        # the classic, also accepted
+```
+
+Every combination means the same thing. I checked all 48.
 
 ### Making decisions
 
@@ -116,6 +128,29 @@ int lucky = GenerateLuckyNumber()
 ```
 warning: line 1: 'GenerateLuckyNumber' isn't defined. vibed one up: int GenerateLuckyNumber()
 ```
+
+### Rules you didn't quite write
+
+Sometimes you write one thing and obviously mean another. Vibe notices, fixes your file, and
+tells you:
+
+```vibe
+for item : res {
+    say "${res.ticker} : ${res.sentiment}}"
+}
+```
+```
+ftfy    line 2: res.ticker → item.ticker (you're looping over res as item)
+ftfy    line 2: res.sentiment → item.sentiment (you're looping over res as item)
+ftfy    line 2: "...${res.sentiment}}" → "...${res.sentiment}" (stray } after an interpolation)
+ftfy    fixed 3 thing(s) in your source. changed your mind? vibec undo app.vibe
+```
+
+I call this **FTFY**. It only fixes what you obviously meant: typos of names in scope, loops that
+read the list instead of the item, stray braces. Everything else is still your problem.
+
+Not ready to let go? `--no-ftfy` turns the fixes into warnings. Regret it? `vibec undo app.vibe`
+(or `vibec nvm app.vibe`) puts back exactly what was there, one FTFY at a time.
 
 ### The vibe check
 
@@ -219,6 +254,8 @@ examples/
 | `-t, --target <lang>` | any language (default `csharp`) |
 | `-o, --out <dir>` | where the program goes (default `bin/`) |
 | `--dump-ast` | also write your rules after semantic resolution |
+| `--no-ftfy` | warn about obvious mistakes instead of fixing them in your file |
+| `vibec undo <file>` | put back what FTFY changed (alias: `nvm`) |
 | `--no-build` | skip the build (not recommended; rules deserve verification) |
 | `--provider`, `--model`, `--base-url` | which backend |
 

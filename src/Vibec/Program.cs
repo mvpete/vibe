@@ -7,6 +7,7 @@ const string Usage = """
     usage:
       vibec <file.vibe> [options]
       vibec doctor [<target>] [--refresh] [--provider <p>] [--model <m>]
+      vibec undo <file.vibe> [--force]     put back what FTFY changed (also: vibec nvm)
 
     options:
       -t, --target <t>     any language: csharp (default), rust, go, html, python, zig, ...
@@ -20,6 +21,7 @@ const string Usage = """
       --max-repairs <n>    build-repair rounds (default 3)
       --fresh              re-ask everything and replace the vibe cache
       --refresh            re-discover the target's toolchain recipe
+      --no-ftfy            don't fix obvious mistakes in your .vibe files; just warn
       -y, --yes            approve a new toolchain recipe without asking
     """;
 
@@ -39,7 +41,7 @@ for (int i = 0; i < args.Length; i++)
             case "--model": opts["model"] = Value(); break;
             case "--base-url": opts["base-url"] = Value(); break;
             case "--max-repairs": opts["max-repairs"] = Value(); break;
-            case "--dump-ast" or "--no-build" or "--fresh" or "--refresh": opts[a[2..]] = "1"; break;
+            case "--dump-ast" or "--no-build" or "--fresh" or "--refresh" or "--no-ftfy" or "--force": opts[a[2..]] = "1"; break;
             case "-y" or "--yes": opts["yes"] = "1"; break;
             case "-h" or "--help": Console.WriteLine(Usage); return 0;
             default:
@@ -65,6 +67,13 @@ try
     provider = new MeteredProvider(ProviderFactory.Create(opts.GetValueOrDefault("provider"), opts.GetValueOrDefault("model"), opts.GetValueOrDefault("base-url"), settings));
     pricing = settings.Pricing;
 
+    if (positional[0] is "undo" or "nvm")
+    {
+        if (positional.Count < 2) { Console.Error.WriteLine("usage: vibec undo <file.vibe> [--force]"); return 64; }
+        Console.WriteLine($"  {"undo",-12} {Ftfy.Undo(positional[1], opts.ContainsKey("force"))}");
+        return 0;
+    }
+
     if (positional[0] == "doctor")
         return await Doctor.RunAsync(provider, positional.ElementAtOrDefault(1), opts.ContainsKey("refresh"), opts.ContainsKey("yes"), cts.Token);
 
@@ -84,6 +93,7 @@ try
         Fresh = opts.ContainsKey("fresh"),
         AssumeYes = opts.ContainsKey("yes"),
         RefreshToolchain = opts.ContainsKey("refresh"),
+        Ftfy = !opts.ContainsKey("no-ftfy"),
     };
 
     Console.WriteLine($"vibec {Path.GetFileName(path)} → {target}");

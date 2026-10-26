@@ -1,10 +1,13 @@
 namespace Vibec;
 
-public sealed class AnalyzedModule(ProjectModule module, List<Stmt> program, StaticPass pass)
+public sealed class AnalyzedModule(ProjectModule module, List<Stmt> program, StaticPass pass, List<Fix> lexFixes)
 {
     public ProjectModule Module { get; } = module;
     public List<Stmt> Program { get; } = program;
     public StaticPass Pass { get; } = pass;
+
+    /// FTFY fixes for this module's file: typos from lexing plus what the static pass worked out.
+    public List<Fix> Fixes => lexFixes.Concat(Pass.Fixes).Select(f => f with { File = Module.FileName }).Distinct().ToList();
 }
 
 /// The static pass over a whole project: every module, in dependency order, each seeing the
@@ -19,7 +22,8 @@ public sealed class ProjectAnalysis
         var checkedModules = new Dictionary<string, ModuleInfo>();
         foreach (var module in modules)
         {
-            var program = Parser.ParseSource(module.Source);
+            var lexFixes = new List<Fix>();
+            var program = Parser.ParseSource(module.Source, lexFixes);
             var pass = new StaticPass(knowledge)
             {
                 Final = final,
@@ -29,7 +33,7 @@ public sealed class ProjectAnalysis
             };
             pass.Run(program);
             checkedModules[module.Name] = ModuleInfo.FromProject(module.Name, program, pass.Generated);
-            analysis.Modules.Add(new AnalyzedModule(module, program, pass));
+            analysis.Modules.Add(new AnalyzedModule(module, program, pass, lexFixes));
         }
         return analysis;
     }

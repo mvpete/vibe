@@ -8,6 +8,7 @@ public class Parser(List<Token> tokens)
     int _inBareArgs; // inside `f a, b`: `x name: v` is the arg x then a named arg for f, not x(name: v) // switch patterns: `name =>` is a pattern, not a lambda
 
     public static List<Stmt> ParseSource(string src) => new Parser(Lexer.Lex(src)).ParseProgram();
+    public static List<Stmt> ParseSource(string src, List<Fix> fixes) => new Parser(Lexer.Lex(src, fixes)).ParseProgram();
 
     Token Peek(int ahead = 0) => tokens[Math.Min(_pos + ahead, tokens.Count - 1)];
     Token Next() => tokens[_pos++];

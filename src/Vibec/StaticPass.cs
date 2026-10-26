@@ -18,6 +18,7 @@ public sealed class StaticPass(Knowledge knowledge)
     public HashSet<string> Features { get; } = [];
     public List<FnDecl> Generated { get; } = []; // functions the vibe pass wrote
     public Dictionary<string, SortedSet<string>> UsedStd { get; } = []; // std module → functions called
+    public List<Fix> Fixes { get; } = []; // FTFY: what the programmer obviously meant
 
     readonly List<Dictionary<string, VType>> _scopes = [];
     readonly List<HashSet<string>> _consts = [];
@@ -127,6 +128,55 @@ public sealed class StaticPass(Knowledge knowledge)
         for (int i = _scopes.Count - 1; i >= 0; i--)
             if (_scopes[i].ContainsKey(name)) return _consts[i].Contains(name);
         return false;
+    }
+
+    /// Every expression in these statements (and the statements nested in them), sub-expressions included.
+    public static IEnumerable<Expr> AllExprs(IEnumerable<Stmt> stmts) =>
+        All(stmts).SelectMany(StmtExprs).SelectMany(Walk);
+
+    static IEnumerable<Expr> StmtExprs(Stmt s) => s switch
+    {
+        Decl d => d.Init is { } i ? [i] : [],
+        Assign a => [a.Target, a.Value],
+        ExprStmt e => [e.Expr],
+        If i => [i.Cond],
+        While w => [w.Cond],
+        For f => [f.Iter],
+        CFor cf => (cf.Cond is { } c ? [c] : Array.Empty<Expr>())
+                   .Concat(cf.Init is { } init ? StmtExprs(init) : [])
+                   .Concat(cf.Step is { } step ? StmtExprs(step) : []),
+        Repeat r => [r.Count],
+        Return r => r.Value is { } v ? [v] : [],
+        Say s2 => s2.Args,
+        VibeCheck v => [v.Cond],
+        Throw t => [t.Value],
+        Exit e => e.Code is { } code ? [code] : [],
+        Sleep sl => [sl.Seconds],
+        Switch sw => sw.Arms.SelectMany(a => a.Patterns).Prepend(sw.Subject),
+        FnDecl fn => fn.Params.Select(p => p.Default).OfType<Expr>(),
+        _ => [],
+    };
+
+    static IEnumerable<Expr> Walk(Expr e)
+    {
+        yield return e;
+        IEnumerable<Expr> children = e switch
+        {
+            ListLit l => l.Items,
+            Interp i => i.Parts.OfType<Expr>(),
+            Unary u => [u.Operand],
+            Binary b => [b.Left, b.Right],
+            Call c => c.Args.Concat(c.Named.Select(n => n.Value)),
+            Member m => (m.Args ?? []).Concat(m.Named.Select(n => n.Value)).Prepend(m.Target),
+            Index ix => [ix.Target, ix.IndexExpr],
+            Lambda lam => [lam.Body],
+            Ask a => a.Prompt is { } p ? [p] : [],
+            Cast c => [c.Inner],
+            Coerce c => [c.Inner],
+            _ => [],
+        };
+        foreach (var child in children)
+            foreach (var x in Walk(child)) yield return x;
     }
 
     /// Every statement, nested ones included.
@@ -266,6 +316,14 @@ public sealed class StaticPass(Knowledge knowledge)
                 CheckBlock(f.Body);
                 Pop();
                 _loopDepth--;
+
+                // for item in res { print res.ticker }: item is never used, res's fields are. you meant item.
+                if (f.Iter is Ident iterId && (f.Iter.Type.IsList || f.Iter.Type.IsDynamic)
+                    && !AllExprs(f.Body).OfType<Ident>().Any(x => x.Name == f.Var))
+                {
+                    foreach (var m in AllExprs(f.Body).OfType<Member>().Where(m => m.Target is Ident t && t.Name == iterId.Name))
+                        Fixes.Add(new Fix(m.Line, $"{iterId.Name}.{m.Name}", $"{f.Var}.{m.Name}", $"you're looping over {iterId.Name} as {f.Var}"));
+                }
                 break;
 
             case CFor cf:
@@ -470,6 +528,7 @@ public sealed class StaticPass(Knowledge knowledge)
                 id.RenamedFrom = id.Name;
                 id.Name = ans.Rename;
                 id.Type = rt;
+                Fixes.Add(new Fix(id.Line, id.RenamedFrom, id.Name, $"'{id.RenamedFrom}' isn't declared; you meant '{id.Name}'"));
                 Warn(id.Line, $"'{id.RenamedFrom}' isn't declared. vibed it to '{id.Name}'");
                 return id;
             }

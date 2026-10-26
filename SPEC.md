@@ -248,6 +248,22 @@ your own code, and you get a warning. Use `--dump-ast` to read it.
 `vibe<list<string>>("red, green and blue")`. It's also how `--dump-ast` writes runtime and
 deferred coercions, so its output is valid Vibe.
 
+### FTFY
+
+When the compiler is sure what you meant, it fixes your source file, prints each fix as an
+`ftfy` line, and compiles the corrected version:
+
+| You wrote | FTFY | Because |
+|---|---|---|
+| `print lukcy` | `print lucky` | a typo of a name in scope (decided by semantic resolution) |
+| `for item in res { print res.ticker }` | `item.ticker` | the loop variable is never used, but the list's fields are |
+| `"${x}}"` | `"${x}"` | a stray `}` straight after an interpolation |
+
+Every FTFY run keeps a before/after copy in `.vibe-int/ftfy/`. `vibec undo file.vibe` (or
+`vibec nvm file.vibe`) restores the most recent one; run it again to go further back. Undo refuses
+if you've edited the file since, unless you pass `--force`. `--no-ftfy` leaves files alone and
+warns instead.
+
 ### Undeclared words
 
 An undeclared name isn't automatically an error. Semantic resolution looks at where it's used: a typo
@@ -286,6 +302,9 @@ vibec doctor [target]                     model reachability + toolchain status
   --fresh           ignore the vibe cache
   --refresh         re-discover the toolchain recipe
   -y, --yes         approve a new toolchain recipe without asking
+  --no-ftfy         warn about obvious mistakes instead of fixing them in the source
+
+vibec undo app.vibe [--force]             put back what FTFY changed (alias: nvm)
 ```
 
 Layout, next to the source:
