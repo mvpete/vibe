@@ -43,6 +43,24 @@ print("third")
 
 You will never get "third" before "first". Try getting that guarantee from a vibe.
 
+### Vibe grammar
+
+English is great for vibes. "Grab the thing from the place when it's ready" works on people.
+It doesn't work on machines, and honestly it's touch and go with people.
+
+So we developed **Vibe grammar**. It's like English, but every sentence means exactly one thing.
+Sentences end at the end of the line. Nouns say what kind of thing they are. Verbs take their
+objects in a fixed order. There are no idioms, except the ones we added on purpose (`nocap`).
+
+```
+English:  if there are more than ten, say that's a lot, otherwise say that's fine
+Vibe:     if count > 10 { print "that's a lot" } else { print "that's fine" }
+```
+
+Same sentence. Only one of them can't be misunderstood. Linguists have a name for this kind of
+thing, a "formal grammar". We call it English with the vibes taken out. The whole thing fits on
+one page of [SPEC.md](SPEC.md#vibe-grammar).
+
 ### Named vibes
 
 Sometimes you want to remember something and use it later. Give it a name.

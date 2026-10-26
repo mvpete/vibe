@@ -327,6 +327,94 @@ Prompts at the top of the file, before any code, apply to the whole program. `%`
 is still the remainder operator. `#prompt` only counts as a directive when followed by a space or `{`;
 other `#` lines are comments. Write `%%` for a literal `%` inside an inline prompt.
 
+## Vibe grammar
+
+English, minus the ambiguity. `{ x }` means zero or more, `[ x ]` means optional, `|` means or.
+A statement ends at a newline or `;`. Gen Z spellings are left out for brevity: wherever a word
+below has an alias in the table above (`true`/`nocap`, `catch`/`sus`, ...), either one works.
+
+```ebnf
+program      = { statement } ;
+
+statement    = prompt | use | function | declaration
+             | if | while | for | repeat | switch | try
+             | print | check | return | throw | exit | sleep
+             | "break" | "continue" | "glowup" target
+             | assignment | expression ;
+
+(* rules about rules *)
+prompt       = ( "#prompt" | "%prompt" ) ( text-to-end-of-line | "{" text "}" )
+             | "%" text "%" ;
+use          = "use" name [ "as" name ] ;
+function     = { "public" | "native" } type name "(" [ param { "," param } ] ")" [ block ]
+             | "maincharacter" block ;                         (* = void main() *)
+param        = type name [ "=" expression ] ;
+declaration  = { "public" | "const" | "global" } ( type | "var" | "let" ) name [ "=" expression ] ;
+type         = "int" | "float" | "string" | "bool" | "json" | "vibe" | "fn" | "void"
+             | "list" [ "<" type ">" ] ;
+block        = "{" { statement } "}" ;
+
+(* deciding and repeating *)
+if           = "if" condition block [ "else" ( if | block ) ] ;
+while        = "while" condition block ;
+for          = ( "for" | "foreach" )
+               ( loop-head | "(" loop-head ")" | "(" [ statement ] ";" [ condition ] ";" [ statement ] ")" )
+               block ;
+loop-head    = [ "var" | "let" | type ] name ( "in" | "of" | ":" ) expression ;
+repeat       = "repeat" expression "times" block ;
+switch       = "switch" expression "{" { arm } "}" ;
+arm          = ( expression { "," expression } | "_" | "else" ) "=>" ( block | statement ) ;
+try          = "try" block "catch" [ "(" name ")" ] block ;
+condition    = expression [ "=" expression ] ;                 (* a lone = here is ==; FTFY fixes it *)
+
+(* saying things *)
+print        = ( "print" | "say" | "write" | "output" | "lowkey" | "highkey" | "spill" ) arguments ;
+check        = ( "assert" | "assume" ) expression ;
+return       = "return" [ expression ] ;
+throw        = "throw" expression ;
+exit         = "exit" [ expression ] ;
+sleep        = "sleep" expression ;
+assignment   = target ( "=" | "+=" | "-=" | "*=" | "/=" ) expression
+             | target ( "++" | "--" ) ;
+target       = name | postfix "[" expression "]" | postfix "." name ;
+
+(* expressions, loosest first *)
+expression   = or ;
+or           = and { ( "or" | "||" ) and } ;
+and          = not { ( "and" | "&&" ) not } ;
+not          = ( "not" | "!" ) not | comparison ;
+comparison   = sum { ( "==" | "!=" | "<" | ">" | "<=" | ">=" | "kinda" ) sum } ;
+sum          = product { ( "+" | "-" ) product } ;
+product      = unary { ( "*" | "/" | "%" ) unary } ;
+unary        = ( "-" | "++" | "--" ) unary | postfix ;
+postfix      = primary { "(" arguments ")" | "[" expression "]" | "." name [ arguments ] | "++" | "--" }
+             | name arguments ;                                (* greet "world": a call without parentheses *)
+arguments    = [ expression { "," expression } ] { name ":" expression } ;
+primary      = number | duration | string | name
+             | "true" | "false" | "null" | "maybe"
+             | "[" [ expression { "," expression } ] "]"
+             | "{" [ key ":" expression { "," key ":" expression } ] "}"
+             | "(" expression ")"
+             | lambda
+             | "ask" [ arguments ]
+             | "%" text "%"
+             | type "(" expression ")"                          (* int("12") *)
+             | "vibe" "<" type ">" "(" expression ")" ;
+lambda       = name "=>" expression
+             | "(" [ name { "," name } ] ")" "=>" expression ;
+key          = name | string ;
+
+(* the small stuff *)
+number       = digit { digit | "_" } [ "." digit { digit } ] ;
+duration     = number ( "ms" | "s" | "m" | "h" | "d" ) ;
+string       = '"' { character | "{$" expression "}" } '"'              (* plain: only {$x} interpolates *)
+             | ( "f" | "$" ) '"' { character | "{" expression "}" } '"' ;
+comment      = ( "#" | "//" ) text-to-end-of-line | "/*" text "*/" ;
+```
+
+That's the whole language. English has a grammar too, but it's 1,700 pages and has exceptions to
+the exceptions.
+
 ## CLI
 
 ```
