@@ -381,6 +381,9 @@ hand-writing assembly: technically allowed, rarely recommended, always impressiv
 **So I can't vibe code anymore?**
 You can. You just shouldn't. Write rules instead.
 
+**Wait... wasn't Vibe vibe coded?**
+Yes. That's how we know it's a problem.
+
 ---
 
 ## Contributing
