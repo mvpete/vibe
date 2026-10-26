@@ -18,6 +18,11 @@ public sealed class CodegenPass(IModelProvider provider)
         choose the behaviour that adds the least. A faithful program that seems unwise is correct;
         a "safer" program that behaves differently is wrong.
 
+        Keep the structure. Translate statement by statement: every variable, branch, loop, function,
+        throw and catch in the specification exists in the code and runs at runtime. Never pre-compute
+        what the program will do and hardcode the result, never inline a value a variable will hold
+        (such as a caught exception's message), and never remove code that looks redundant.
+
         Return JSON: `filename` (the requested output file name), `code` (the entire file), and
         `notes` (one or two sentences on any judgment calls; empty string if none).
         """;

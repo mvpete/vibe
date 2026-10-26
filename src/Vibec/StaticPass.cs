@@ -165,6 +165,7 @@ public sealed class StaticPass(Knowledge knowledge)
         IEnumerable<Expr> children = e switch
         {
             ListLit l => l.Items,
+            ObjLit o => o.Entries.Select(x => x.Value),
             Interp i => i.Parts.OfType<Expr>(),
             Unary u => [u.Operand],
             Binary b => [b.Left, b.Right],
@@ -459,6 +460,13 @@ public sealed class StaticPass(Knowledge knowledge)
                 if (l.Value is Maybe) Features.Add("maybe");
                 return l;
 
+            case ObjLit obj:
+                foreach (var entry in obj.Entries) entry.Value = Check(entry.Value);
+                obj.Type = VType.Json;
+                Features.Add("json");
+                Features.Add("objlit");
+                return obj;
+
             case ListLit list:
                 for (int k = 0; k < list.Items.Count; k++) list.Items[k] = Check(list.Items[k]);
                 list.Type = VType.ListOf(Unify(list.Items.Select(x => x.Type)));
@@ -533,6 +541,8 @@ public sealed class StaticPass(Knowledge knowledge)
         if (t != null) { id.Type = t; return id; }
         if (_functions.TryGetValue(id.Name, out var fn))
         {
+            // where a function is expected, a function's name is the function itself
+            if (expected == VType.Fn) { Features.Add("fnref"); return new FuncRef(id.Line, fn.Name) { Type = VType.Fn }; }
             // a bare function name is a call, if it needs no arguments
             if (fn.Params.Count == 0) { _expected = expected; return CheckCall(new Call(id.Line, id.Name, [])); }
             Error(id.Line, $"'{id.Name}' needs {fn.Params.Count} argument(s)");
@@ -1053,6 +1063,7 @@ public sealed class StaticPass(Knowledge knowledge)
         var from = e.Type;
         if (to == VType.Vibe || from == to) return e;
         if (from == VType.Void) { Error(line, "that expression doesn't produce a value"); return e; }
+        if (to == VType.Fn && from != VType.Fn) { Error(line, $"expected a function here (a function's name or a lambda), not a {from}"); return e; }
         if (from == VType.Fn) { Error(line, $"a lambda can't become a {to}"); return e; }
         if (to == VType.Void) return e;
         if (e is Lit { Value: null }) return e;                     // null fits anywhere

@@ -16,6 +16,12 @@
 - `int(x)`, `float(x)`, `string(x)`, `bool(x)`, `json(x)` conversions.
 - `print ... end: ""` / `sep: ", "`, and `write` / `output` (print without a newline).
 - `i++`, `i--`, `++i`, `--i` as expressions. FTFY declares an undeclared counter (`int i = 0`) before its loop.
+- `server` standard module: routes with `fn` handlers, `:name` path params, `respond`, `listen`.
+  The canonical example is `examples/webserver/`.
+- JSON object literals: `{ ok: true, count: n }`.
+- `fn` parameters; a function's name passes the function where an `fn` is expected.
+- The backend keeps the program's structure: no pre-computing results or inlining a caught error's message.
+- Long generations get a 15-minute network timeout; timeouts are a clean `model error` instead of a crash.
 - More FTFY rules: wrong case on names and calls, the loop index you meant (`for i in range 5 { print n }`),
   a single `=` in a condition, member typos on lists and strings (`xs.lenght`). The criteria are in SPEC.md.
 - Fixed: anything after the first expression inside `${...}` was silently ignored; it's now an error.

@@ -1,0 +1,41 @@
+#prompt a small JSON API for a todo list, with a home page
+
+use server
+use todos
+
+string home(json req) {
+    return "<h1>vibe server</h1><p>rules, served. try <a href='/todos'>/todos</a></p>"
+}
+
+json health(json req) {
+    return { ok: true, todos: todos.count }
+}
+
+json listTodos(json req) {
+    return todos.all
+}
+
+json add(json req) {
+    string title = req.body.title
+    if title == "" {
+        return server.respond 400, { error: "a todo needs a title" }
+    }
+    return server.respond 201, todos.add title
+}
+
+json finish(json req) {
+    try {
+        return todos.finish req.params.id
+    } catch (e) {
+        return server.respond 404, { error: e }
+    }
+}
+
+server.get "/", home
+server.get "/health", health
+server.get "/todos", listTodos
+server.post "/todos", add
+server.post "/todos/:id/done", finish
+
+print "listening on http://localhost:8080"
+server.listen 8080

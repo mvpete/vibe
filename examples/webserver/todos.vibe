@@ -1,0 +1,29 @@
+#prompt keeps todos in memory while the server runs
+
+list<json> items = []
+int nextId = 1
+
+public int count() {
+    return items.length
+}
+
+public list<json> all() {
+    return items
+}
+
+public json add(string title) {
+    json todo = { id: nextId, title: title, done: false }
+    nextId++
+    items.push todo
+    return todo
+}
+
+public json finish(int id) {
+    for todo in items {
+        if todo.id == id {
+            todo.done = true
+            return todo
+        }
+    }
+    throw "no todo with id " + id
+}

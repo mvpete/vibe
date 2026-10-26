@@ -27,6 +27,12 @@ public sealed class PromptPass(IModelProvider provider)
           nothing more: no extra exits or breaks, no input validation, no null/end-of-input handling,
           no retries, no error messages, no features the source doesn't contain. If the source loops
           forever, the program loops forever. State this rule explicitly in the prompt you write.
+        - Structure is part of faithfulness. The program is translated statement by statement and
+          keeps every variable, branch, loop, function and handler the source has. Never run the
+          program in your head: don't pre-compute results, inline what a variable will hold (a caught
+          error's message, a loop's output), or drop code that looks redundant or unreachable.
+          `try { throw "x" } catch (e) { print e }` throws and catches at runtime and prints the
+          caught message; it is not `print "x"`. Say this explicitly too.
         - Do not write the program itself. Write the specification.
 
         Output only the prompt, as Markdown, starting with a "# Task" heading.
@@ -64,6 +70,8 @@ public sealed class PromptPass(IModelProvider provider)
         ["for-int"] = "- `for i in n` (n an int) iterates i = 0 .. n-1.",
         ["print-options"] = "- `print(a, b, sep: s, end: e)` separates the arguments with s (default: one space) and finishes with e (default: a newline). `end: \"\"` prints with no newline; flush output so it appears immediately.",
         ["incdec"] = "- `x++` / `x--` inside an expression yields x's current value, then adds or subtracts 1. `++x` / `--x` change x first and yield the new value.",
+        ["objlit"] = "- `{ key: value, ... }` builds a JSON object from the values (numbers, strings, bools, lists, nested objects, null).",
+        ["fnref"] = "- A function's name passed where a function is expected (`server.get \"/\", home`) passes the function itself, not a call to it.",
         ["typed-for"] = "- `for T x in xs` converts each element to T with the vibe<T> rules as it goes.",
         ["c-for"] = "- `for (init; cond; step)` is a C-style loop: init once, check cond before each pass, run step after each pass (including after continue).",
         ["repeat"] = "- `repeat n times { }` runs the block n times.",

@@ -191,6 +191,10 @@ public sealed class Printer
         switch (e)
         {
             case Lit l: return l.Display ?? Value(l.Value);
+            case ObjLit obj:
+                return obj.Entries.Count == 0 ? "{}" : "{ " + string.Join(", ", obj.Entries.Select(x =>
+                    (System.Text.RegularExpressions.Regex.IsMatch(x.Name, @"^[A-Za-z_]\w*$") ? x.Name : $"\"{Escape(x.Name)}\"") + ": " + E(x.Value))) + " }";
+            case FuncRef fr: return fr.Name;
             case ListLit list: return $"[{string.Join(", ", list.Items.Select(E))}]";
             case Interp interp:
                 return "f\"" + string.Concat(interp.Parts.Select(p => p is string s

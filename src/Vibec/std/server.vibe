@@ -1,0 +1,24 @@
+#prompt {
+    HTTP server. Register routes, then listen; listen serves requests until the program is stopped.
+
+    A handler is a function taking one json, the request:
+        { method, path, params: {name: value}, query: {name: value}, headers: {name: value}, body }
+    body is the parsed JSON when the request is JSON, otherwise the text (empty string if none).
+    Paths match exactly, except a segment written :name, which matches any one segment and appears
+    in params. Header names are lowercase.
+
+    What a handler returns becomes the response:
+    - a string: 200, text/html if it starts with "<", otherwise text/plain
+    - json, a list, a number or a bool: 200, application/json
+    - the result of respond(status, body, headers): that status and headers, body as above
+    A handler that throws gets a 500 with the error message as text. No route: 404, "not found".
+
+    Each request is logged to stdout as "METHOD path → status".
+}
+
+flex native void get(string path, fn handler)
+flex native void post(string path, fn handler)
+flex native void put(string path, fn handler)
+flex native void delete(string path, fn handler)
+flex native json respond(int status, vibe body, json headers = {})
+flex native void listen(int port = 8080)

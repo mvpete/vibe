@@ -31,7 +31,7 @@ public sealed class VType
         return s switch
         {
             "int" => Int, "float" => Float, "string" => Str, "bool" => Bool,
-            "vibe" => Vibe, "void" => Void, "json" => Json, "list" => ListOf(Vibe), _ => null,
+            "vibe" => Vibe, "void" => Void, "json" => Json, "fn" => Fn, "list" => ListOf(Vibe), _ => null,
         };
     }
 
@@ -70,6 +70,18 @@ public sealed class ListLit(int line, List<Expr> items) : Expr(line)
 public sealed class Interp(int line, List<object> parts) : Expr(line)
 {
     public List<object> Parts { get; } = parts;
+}
+
+/// `{ ok: true, "count": n }`: a JSON object, built from expressions.
+public sealed class ObjLit(int line, List<NamedArg> entries) : Expr(line)
+{
+    public List<NamedArg> Entries { get; } = entries;
+}
+
+/// A function passed as a value (`server.get "/", home`), where an `fn` is expected.
+public sealed class FuncRef(int line, string name) : Expr(line)
+{
+    public string Name { get; } = name;
 }
 
 public sealed class Ident(int line, string name) : Expr(line)

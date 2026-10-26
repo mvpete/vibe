@@ -35,6 +35,11 @@ in `~/.vibec/toolchains/<target>.json`. Commands never run through a shell.
 
 `json` holds parsed JSON. `x.field` and `x[i]` are json too (missing → null). Assigning a string to a
 `json` parses it; assigning a json to another type reads it as that type. Both happen at runtime.
+Object literals build one: `{ ok: true, "two words": 1, tags: ["a"] }`, across lines if you like.
+
+`fn` is a function-typed parameter (the standard library uses it for handlers). Where an `fn` is
+expected, a function's name passes the function itself, and a lambda works too:
+`server.get "/", home`, `server.post "/echo", req => req.body`.
 
 Duration literals are float seconds: `500ms`, `2s`, `1.5m`, `1h`, `1d`.
 
@@ -231,6 +236,7 @@ print res.field
 | `random` | `between`, `unit`, `chance`, `pick`, `shuffle` |
 | `env` | `args`, `get`, `cwd` |
 | `math` | `sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `min`, `max`, `pi` |
+| `server` | `get`, `post`, `put`, `delete` (path + handler; `:name` segments), `respond`, `listen` |
 
 `use http as web` gives a module another name. Wrong arguments, unknown parameters and unknown
 functions are compile errors.

@@ -52,6 +52,7 @@ public sealed class VibePass(IModelProvider provider)
         Statements: typed declarations or `var x = ...`, assignment (= += -= ++), if / else if / else,
         while, `for x in xs`, `repeat n times { }`, return, print(a, b), try { } catch (e) { }.
         Lists: [1, 2], xs.length, xs.push(x), xs.map(lambda), xs.filter(lambda). Strings: f"{x}", .upper().
+        JSON: json j = { id: 1, tags: ["a"] }; j.id, j.tags[0].
         No semicolons. No classes. No imports.
 
         Keep `why`, `meaning` short. Use null for fields that don't apply.

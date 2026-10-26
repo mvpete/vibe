@@ -57,7 +57,7 @@ public class Parser(List<Token> tokens)
 
     // ---------- types ----------
 
-    static readonly HashSet<string> TypeWords = ["int", "float", "string", "bool", "vibe", "json", "list", "void"];
+    static readonly HashSet<string> TypeWords = ["int", "float", "string", "bool", "vibe", "json", "fn", "list", "void"];
 
     bool AtType(int ahead = 0) => Peek(ahead).Type == Tok.Keyword && TypeWords.Contains(Peek(ahead).Text);
 
@@ -72,6 +72,7 @@ public class Parser(List<Token> tokens)
             case "bool": return VType.Bool;
             case "vibe": return VType.Vibe;
             case "json": return VType.Json;
+            case "fn": return VType.Fn;
             case "void": return VType.Void;
             case "list":
                 if (!Match("<")) return VType.ListOf(VType.Vibe);
@@ -658,9 +659,34 @@ public class Parser(List<Token> tokens)
                 if (!At("]")) do items.Add(Expression()); while (Match(","));
                 Expect("]");
                 return new ListLit(t.Line, items);
+            case "{":
+                return ObjectLiteral(t.Line);
         }
 
         throw new VibeError($"'{t.Text}' is not a vibe", t.Line);
+    }
+
+    /// { key: value, "other key": value } - commas or newlines between entries, trailing comma fine.
+    ObjLit ObjectLiteral(int line)
+    {
+        var entries = new List<NamedArg>();
+        SkipNewlines();
+        while (!At("}"))
+        {
+            var key = Next();
+            if (key.Type is not (Tok.Ident or Tok.Keyword or Tok.String))
+                throw new VibeError($"a json key should be a name or a string, not '{key.Text}'", key.Line);
+            Expect(":");
+            var name = key.Type == Tok.String ? (string)key.Value! : key.Text;
+            if (entries.Any(e => e.Name == name)) throw new VibeError($"'{name}' appears twice in this object", key.Line);
+            entries.Add(new NamedArg(name, Expression()));
+            bool comma = Match(",");
+            bool newline = Peek().Type == Tok.Newline;
+            SkipNewlines();
+            if (!comma && !newline && !At("}")) throw new VibeError($"expected ',' or '}}' in the object, not '{Peek().Text}'", Peek().Line);
+        }
+        Expect("}");
+        return new ObjLit(line, entries);
     }
 
     static Interp Interpolated(Token t)

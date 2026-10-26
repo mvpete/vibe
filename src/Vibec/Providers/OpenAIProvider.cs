@@ -28,7 +28,8 @@ public sealed class OpenAIProvider : IModelProvider
         _hasKey = !string.IsNullOrEmpty(apiKey) || baseUrl != null;
         _baseUrl = baseUrl;
         var credential = new ApiKeyCredential(string.IsNullOrEmpty(apiKey) ? "not-needed" : apiKey);
-        var options = new OpenAIClientOptions();
+        // codegen can think for minutes before the first byte; the SDK's default is 100s
+        var options = new OpenAIClientOptions { NetworkTimeout = TimeSpan.FromMinutes(15) };
         if (baseUrl != null) options.Endpoint = new Uri(baseUrl);
         _chat = new ChatClient(model, credential, options);
         _models = new OpenAIModelClient(credential, options);
@@ -81,6 +82,12 @@ public sealed class OpenAIProvider : IModelProvider
             catch (ClientResultException ex)
             {
                 throw new ModelException($"{Name} returned HTTP {ex.Status}: {FirstLine(ex.Message)}", ex);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested && ex is AggregateException or TaskCanceledException or HttpRequestException or IOException)
+            {
+                // timeouts and dropped connections, after the SDK's own retries
+                var inner = ex is AggregateException agg ? agg.InnerExceptions.LastOrDefault() ?? ex : ex;
+                throw new ModelException($"couldn't reach {Name}: {FirstLine(inner.Message)}", ex);
             }
         }
     }
