@@ -1,6 +1,6 @@
 # Vibe
 
-**Vibe coding, for those who just want to code.**
+**Deterministic vibes. Post-vibe coding.**
 
 [![ci](https://github.com/mvpete/vibe/actions/workflows/ci.yml/badge.svg)](https://github.com/mvpete/vibe/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/mvpete/vibe?include_prereleases)](https://github.com/mvpete/vibe/releases)
