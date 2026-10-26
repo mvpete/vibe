@@ -11,7 +11,7 @@
 ```powershell
 vibec greeter.vibe              # → bin/greeter.exe
 vibec greeter.vibe -t html      # → bin/greeter.html
-vibec taste.vibe --dump-ast     # see what semantic resolution decided: .vibe-int/taste.ast.vibe
+vibec taste.vibe               # then read .vibe-int/taste.ast.vibe to see what semantic resolution decided
 ```
 
 Every file here is checked by the test suite: it must parse, pass static analysis, and round-trip

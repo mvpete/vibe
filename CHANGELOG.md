@@ -22,4 +22,4 @@ First release. Rules run in order.
 - Build errors are fed back to the backend until it compiles.
 - Output layout: `.vibe-int/` for intermediates, `bin/` for the program.
 - Providers: OpenAI and anything OpenAI-compatible (Ollama, LM Studio, vLLM).
-- `vibec doctor`, `--dump-ast`, `--dump-prompt`.
+- `vibec doctor`. Every stage writes its output to `.vibe-int/`: annotated AST, the IR prompt, the codegen transcript.

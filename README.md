@@ -162,10 +162,12 @@ your rules → parse → semantic resolution → lowering → backend → build 
 4. **Backend.** The specification becomes source code.
 5. **Build.** The code is compiled with your real compiler. If it doesn't compile, the backend is told exactly what went wrong and tries again.
 
-Nothing is vibed. Everything is checked. You can inspect every step:
+Nothing is vibed. Everything is checked. Every step leaves its work in `.vibe-int/`:
 
 ```
-vibec app.vibe --target rust --dump-ast --dump-prompt
+.vibe-int/app.ast.vibe              your rules after semantic resolution
+.vibe-int/app.rust.prompt.md        the specification the backend receives
+.vibe-int/app.rust.transcript.md    every backend attempt and build error
 ```
 
 > Fine print: semantic resolution, lowering, and the backend are performed by a large
@@ -202,7 +204,7 @@ Output goes next to your rules:
 ```
 examples/
 ├── hello.vibe
-├── .vibe-int/        intermediates: resolved vibes, dumps, generated source (src/)
+├── .vibe-int/        intermediates: resolved rules, the specification, generated source (src/)
 └── bin/              the program
 ```
 
@@ -210,8 +212,6 @@ examples/
 |---|---|
 | `-t, --target <lang>` | any language (default `csharp`) |
 | `-o, --out <dir>` | where the program goes (default `bin/`) |
-| `--dump-ast` | the rules after semantic resolution |
-| `--dump-prompt` | the specification and every backend attempt |
 | `--no-build` | skip the build (not recommended; rules deserve verification) |
 | `--provider`, `--model`, `--base-url` | which backend |
 

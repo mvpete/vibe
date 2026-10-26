@@ -8,8 +8,6 @@ public sealed class CompileOptions
     public required string SourcePath { get; init; }
     public required string Target { get; init; }
     public string? OutDir { get; init; }
-    public bool DumpPrompt { get; init; }
-    public bool DumpAst { get; init; }
     public bool Build { get; init; } = true;
     public int MaxRepairs { get; init; } = 3;
     public bool Fresh { get; init; }
@@ -79,16 +77,17 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
         }
 
         var annotated = Printer.Print(program.Concat(pass.Generated));
-        if (o.DumpAst) Dump(Path.Combine(intDir, $"{name}.ast.vibe"), annotated, "annotated AST");
+        Intermediate(Path.Combine(intDir, $"{name}.ast.vibe"), annotated);
 
         var (ir, promptReply) = await new PromptPass(provider).WriteAsync(annotated, pass.Features, target, toolchain, ct);
         Step("lowering", $"specification ready ({promptReply.OutputTokens} tokens)");
+        Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.prompt.md"), ir);
 
         if (Directory.Exists(srcDir)) Directory.Delete(srcDir, recursive: true);
         Directory.CreateDirectory(srcDir);
 
         var result = await new CodegenPass(provider).RunAsync(ir, target, toolchain, o.MaxRepairs, srcDir, name, m => Step("backend", m), ct);
-        if (o.DumpPrompt) Dump(Path.Combine(intDir, $"{name}.{target.Target}.prompt.md"), result.Transcript, "prompt + codegen transcript");
+        Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.transcript.md"), result.Transcript);
 
         var sourceFile = Path.Combine(srcDir, target.FileName);
         if (result.Verified && !result.Built)
@@ -117,10 +116,12 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
 
     void Step(string label, string message) => log.WriteLine($"  {label,-12} {message}");
 
-    void Dump(string path, string content, string what)
+    /// Every stage leaves its output in .vibe-int/ as soon as it finishes, so a failure
+    /// later on still leaves everything before it to inspect.
+    void Intermediate(string path, string content)
     {
         File.WriteAllText(path, content);
-        Step("dump", $"{what} → {path}");
+        Step("wrote", Path.GetRelativePath(Environment.CurrentDirectory, path));
     }
 
     static string Indent(string s) => string.Join("\n", s.Split('\n').Take(30).Select(l => "    " + l));

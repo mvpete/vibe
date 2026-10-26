@@ -107,8 +107,8 @@ try {
 
 ### Aliases
 
-Every construct with a standard spelling also has a Gen Z one. Both always work; `--dump-ast`
-prints the standard form.
+Every construct with a standard spelling also has a Gen Z one. Both always work; the annotated AST
+in `.vibe-int/` uses the standard form.
 
 | Standard | Gen Z | Notes |
 |---|---|---|
@@ -147,13 +147,13 @@ Anything else is sent to the vibe pass, which decides what it means.
 
 Calling a function nobody defined isn't an error. The vibe pass writes it in Vibe, using the
 call's argument types and the type the caller expects back. The generated function is checked like
-your own code, and you get a warning. Use `--dump-ast` to read it.
+your own code, and you get a warning. Read it in `.vibe-int/<name>.ast.vibe`.
 
 ### Explicit conversion
 
 `vibe<T>(x)` converts explicitly, using the same rules as implicit coercion: `vibe<int>("twelve")`,
-`vibe<list<string>>("red, green and blue")`. It's also how `--dump-ast` writes runtime and deferred
-coercions, so normalized output is valid Vibe.
+`vibe<list<string>>("red, green and blue")`. It's also how the annotated AST writes runtime and
+deferred coercions, so it's valid Vibe.
 
 ### Undeclared words
 
@@ -184,8 +184,6 @@ vibec app.vibe -t html -o site            → site/app.html
 vibec doctor [target]                     model reachability + toolchain status
 
   -o, --out DIR     output folder (default: bin/ next to the source)
-  --dump-ast        annotated AST → .vibe-int/app.ast.vibe
-  --dump-prompt     IR + full codegen/repair transcript → .vibe-int/app.<target>.prompt.md
   --no-build        skip build/repair (output is unverified)
   --max-repairs N   default 3
   --provider P      openai (default) | ollama
@@ -200,6 +198,9 @@ Layout, next to the source:
 
 ```
 .vibe-int/vibecache.json        resolved vibes, so unchanged code isn't re-asked
+.vibe-int/<name>.ast.vibe       annotated AST: your rules after semantic resolution
+.vibe-int/<name>.<target>.prompt.md      the IR: exactly what the backend receives
+.vibe-int/<name>.<target>.transcript.md  every backend attempt and build error
 .vibe-int/src/<name>-<target>/  generated source and build files; the build runs here
 bin/                            the deliverable: an executable, or the source for interpreted targets
 ```
