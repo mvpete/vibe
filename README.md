@@ -1,6 +1,6 @@
 # Vibe
 
-**Stop vibe coding. Start writing rules.**
+**Stop vibe coding in the gym. Start writing rules instead.**
 
 ![license: MIT](https://img.shields.io/badge/license-MIT-blue)
 ![.NET 9](https://img.shields.io/badge/.NET-9-512BD4)
@@ -10,12 +10,12 @@
 Vibe coding is chaos. You describe what you want, you hope, and you get something that is
 roughly the shape of your hopes. Nobody knows what it will do. Including you.
 
-So I tried something different. What if, instead of describing a *vibe*, you wrote down
+So we tried something different. What if, instead of describing a *vibe*, you wrote down
 **exactly what should happen, step by step, in order**? Precise instructions. Rules. A
 machine follows them one after another, and you know what it will do because you said so.
 
-I've been calling this an **imperative** approach, because each rule is a command.
-As far as I can tell, nobody has tried this.
+We've been calling this an **imperative** approach, because each rule is a command.
+As far as we can tell, nobody has tried this.
 
 ```vibe
 print("hello, world")
@@ -27,11 +27,11 @@ That's a rule. It does one thing. It always does that thing. Incredible.
 
 ## Core concepts
 
-These took a while to work out. I'm sharing them freely.
+These took a while to work out. We're sharing them freely.
 
 ### Rules run in order
 
-The first rule happens first. Then the second one. I call this **order**.
+The first rule happens first. Then the second one. We call this **order**.
 
 ```vibe
 print("first")
@@ -50,7 +50,7 @@ int count = 12
 print(count)
 ```
 
-I call these **named vibes**. A colleague says the industry term might be "variables",
+We call these **named vibes**. A colleague says the industry term might be "variables",
 but they also still vibe code, so.
 
 ### Vibe guarantees
@@ -68,9 +68,12 @@ list<int> evens = "first five evens" # [2, 4, 6, 8, 10]
 ```
 
 Other systems would reject `"twelve"`. Vibe understands what you *meant*, then holds you
-to it. I call this **strongly-loose typing**. It is strong, and it is loose.
+to it. We call this **strongly-loose typing**. It is strong, and it is loose.
 
 ### Doing things more than once
+
+Some rules deserve to happen more than once. You could write them out three times. We tried
+that. It was a lot of typing. Instead, say how many times:
 
 ```vibe
 repeat 3 times {
@@ -92,35 +95,66 @@ for (int n : numbers) { }               # a typed variable bends each element to
 for (int i = 0; i < 10; i++) { }        # the classic, also accepted
 ```
 
-Every combination means the same thing. I checked all 48.
+Every combination means the same thing. We checked all 48.
+
+And no, we didn't forget about `while`. For when you really don't know how many times you want
+to do something, only that you're *not done yet*:
+
+```vibe
+while infinity {
+    print "are we there yet?"
+}
+```
+
+Yes, `infinity` works. We know what you meant, and so does Vibe.
+
+There's no `do ... while`. If you want to do something first, write it first: rules run in
+order. Or just use `for`. We did forget about `until` and `loop`, but nobody's noticed yet.
 
 ### Making decisions
 
+Sometimes a rule should only happen if something is true. We call this a **decision**. You make
+thousands a day. Now your program can make one.
+
 ```vibe
 if count > 10 {
-    print("that's a lot")
+    print "that's a lot"
 } else {
-    print("that's fine")
+    print "that's fine"
+}
+```
+
+For more than two outcomes there's `else if`, and when the ladder of `else if`s gets embarrassing,
+`switch` (or `vibeshift`, if you're feeling it):
+
+```vibe
+vibeshift mood {
+    "great", "amazing" => print "slay"
+    "meh" => print "it's giving mid"
+    _ => print "no thoughts, head empty"
 }
 ```
 
 ### Reusable rule groups
 
-Write a group of rules once and use it by name. The first word says what kind of thing
-comes back.
+Write a group of rules once, give it a name, and use it whenever you like. The first word is a
+promise about what comes back.
 
 ```vibe
 int area(int width, int height) {
     return width * height
 }
 
-print(area(3, 4))
+print area(3, 4)
+print area 3, 4        # the parentheses were only ever a suggestion
 ```
+
+"Programmers" of yester-year called these "functions" (or "methods", or "procedures"). We liked the idea. The parentheses are optional.
 
 ### Rule groups you didn't write
 
-This one surprised me. If you use a rule group that doesn't exist, Vibe works out what you
-obviously meant and writes it for you. It tells you, so you stay in control:
+This one surprised us. If you use a rule group that doesn't exist, Vibe works out what you
+obviously meant by the name and writes it for you. It tells you, so you stay in control:
 
 ```vibe
 int lucky = GenerateLuckyNumber()
@@ -128,6 +162,40 @@ int lucky = GenerateLuckyNumber()
 ```
 warning: line 1: 'GenerateLuckyNumber' isn't defined. vibed one up: int GenerateLuckyNumber()
 ```
+
+### Rules in other files
+
+Once you have enough rules, they stop fitting in one file. Put them in several and `use` the ones
+you need. We call each file a **module**, which sounds more organised than "another file".
+
+```vibe
+# game.vibe
+public int score(list<int> rolls) {
+    return rolls.filter(r => r > 3).length * 10
+}
+
+# main.vibe
+use game
+print game.score [4, 6, 2, 5]
+```
+
+Only `public` (or `flex` cause y'know) rules can be used from outside. Everything else stays between a module
+and itself. Modules that use each other in a circle are an error: *circular vibes*.
+
+### Other people's rules
+
+Some rules everybody needs: fetching a web page, reading a file, waiting a bit. Vibe comes with
+those, and you bring them in with `use`:
+
+```vibe
+use http
+json res = http.get "https://example.com/api" timeout: 2s
+print res.price
+```
+
+There's `http`, `fs`, `time`, `random`, `env`, `math` and `server` (yes, you can
+[write a web server](examples/webserver) in rules). Forget the `use` and Vibe will still guess
+what `http.get` means, but it will warn you. Guessing is the thing we're trying to stop.
 
 ### Compiler... you know what I meant.
 
@@ -146,7 +214,7 @@ ftfy    line 2: "...${res.sentiment}}" → "...${res.sentiment}" (stray } after 
 ftfy    fixed 3 thing(s) in your source. changed your mind? vibec undo app.vibe
 ```
 
-I call this **FTFY**. It only fixes what you obviously meant: typos of names in scope, loops that
+We call this **FTFY**. It only fixes what you obviously meant: typos of names in scope, loops that
 read the list instead of the item, stray braces, a counter you forgot to declare, `if x = 5`,
 `xs.lenght`. The full list is in [SPEC.md](SPEC.md#ftfy). Everything else is still your problem.
 
@@ -192,10 +260,11 @@ language of your choice: C#, Rust, Go, HTML, whatever you like.
 your rules → parse → semantic resolution → lowering → IL → backend → build → program
 ```
 
-1. **Parse.** Your rules are read and structured.
+1. **Parse.** Your rules are read and structured. Carefully. In order.
 2. **Semantic resolution.** Vibe guarantees are enforced. `"twelve"` becomes `12`. Missing rule groups get written. Typos get fixed.
 3. **Lowering.** Your program becomes the **IL**: a precise, step-by-step specification that doesn't mention any programming language.
-4. **Backend.** The IL, plus the language you asked for, becomes source code.
+4. **Backend.** The IL, plus the language you asked for, becomes source code. It's the only step
+   that knows which language you wanted, and it isn't allowed to tell the others.
 5. **Build.** The code is compiled with your real compiler. If it doesn't compile, or leaves out anything your rules print, the backend is told exactly what went wrong and tries again.
 
 Nothing is vibed. Everything is checked. You can read every step:
@@ -233,7 +302,7 @@ We believe this is a first.
 ## Getting started
 
 You need the [.NET 9 SDK](https://dot.net/download) and an OpenAI API key (or a local
-[Ollama](https://ollama.com)).
+[Ollama](https://ollama.com)). Rules need a little help getting started. We don't talk about it.
 
 ```powershell
 git clone https://github.com/YOUR-USERNAME/vibe.git
@@ -253,7 +322,7 @@ $vibec = "src\Vibec\bin\Debug\net9.0\vibec.exe"
 The first time you target a language, `vibec` works out how to compile it on your machine and
 shows you the exact commands before running anything. Approve once and it remembers.
 
-Every compile ends with what it cost:
+Every compile ends with what it cost, because precision includes the bill:
 
 ```
   usage        2 model call(s), 1,196 in + 1,116 out tokens, $0.0007 (OpenAI pricing page, 2026-10-25)
@@ -285,7 +354,7 @@ The full rulebook is in [SPEC.md](SPEC.md). The reasoning behind all this is in 
 ## FAQ
 
 **Isn't this just programming?**
-Programming is when you write code. This is when you write rules, and then the rules become code.
+Programming is when you write code. This is when you write rules, and then the rules become code. Not the same.
 
 **Isn't strongly-loose typing an oxymoron?**
 So is jumbo shrimp. People still order it.
