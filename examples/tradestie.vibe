@@ -1,0 +1,8 @@
+use http
+
+json res = http.get "https://tradestie.com/api/v1/apps/reddit"
+
+int i = 0
+for item : res {
+    say "${i++} => ${item.ticker} : ${item.sentiment}"
+}
