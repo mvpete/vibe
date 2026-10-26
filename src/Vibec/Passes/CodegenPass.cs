@@ -52,7 +52,7 @@ public sealed class CodegenPass(IModelProvider provider)
         for (int attempt = 1; ; attempt++)
         {
             var request = new ModelRequest(System, turns, new JsonSchemaSpec("generated_file", Schema), Effort.High, MaxOutputTokens: 64000);
-            var (json, reply) = await Structured.AskJsonAsync(provider, request, ct);
+            var (json, reply) = await Indicator.Run("backend", () => Structured.AskJsonAsync(provider, request, ct));
             code = json["code"]?.GetValue<string>() ?? "";
             notes = json["notes"]?.GetValue<string>() ?? "";
             transcript.Append($"\n# Assistant (attempt {attempt})\n\n```{target.Fence}\n{code}\n```\n");

@@ -67,7 +67,7 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
             if (questions.Count == 0) break;
 
             Step("analysis", $"{questions.Count} thing(s) need semantic resolution");
-            var outcome = await vibe.AnswerAsync(questions, knowledge, analysis.Sources, ct);
+            var outcome = await Indicator.Run("resolution", () => vibe.AnswerAsync(questions, knowledge, analysis.Sources, ct));
             knowledge.Save();
             Step("resolution", $"{outcome.Resolved} resolved, {outcome.Rejected} unresolved ({provider.Name}/{provider.Model}, {outcome.InputTokens}+{outcome.OutputTokens} tokens)");
         }
@@ -111,7 +111,7 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
             var signatures = string.Join("\n", u.Value.Select(f => Printer.Signature(module.Functions[f])));
             return $"### {module.Name}\n{module.Prompt}\n```vibe\n{signatures}\n```";
         }));
-        var (ir, promptReply) = await new PromptPass(provider).WriteAsync(annotated, analysis.Features, target, toolchain, library, ct);
+        var (ir, promptReply) = await Indicator.Run("lowering", () => new PromptPass(provider).WriteAsync(annotated, analysis.Features, target, toolchain, library, ct));
         Step("lowering", $"specification ready ({promptReply.OutputTokens} tokens)");
         Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.prompt.md"), ir);
 

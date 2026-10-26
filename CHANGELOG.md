@@ -22,6 +22,7 @@
 - `fn` parameters; a function's name passes the function where an `fn` is expected.
 - The backend keeps the program's structure: no pre-computing results or inlining a caught error's message.
 - Long generations get a 15-minute network timeout; timeouts are a clean `model error` instead of a crash.
+- While a model works, the current step shows elapsed time and what it's doing ("coding (not vibe coding)… 1:12"). Silent when output is redirected.
 - More FTFY rules: wrong case on names and calls, the loop index you meant (`for i in range 5 { print n }`),
   a single `=` in a condition, member typos on lists and strings (`xs.lenght`). The criteria are in SPEC.md.
 - Fixed: anything after the first expression inside `${...}` was silently ignored; it's now an error.

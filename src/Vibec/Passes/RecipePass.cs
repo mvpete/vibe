@@ -96,7 +96,7 @@ public sealed class RecipePass(IModelProvider provider, TextWriter log)
         if (recipe == null)
         {
             log.WriteLine($"  {"toolchain",-12} first time targeting '{target}'; consulting the backend ({provider.Name}/{provider.Model})");
-            recipe = await DiscoverAsync(target, ct);
+            recipe = await Indicator.Run("toolchain", () => DiscoverAsync(target, ct));
         }
 
         if (!Approve(recipe, assumeYes)) return null;
