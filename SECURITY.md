@@ -30,4 +30,4 @@ Advisories), not in a public issue.
 
 ## Full disclosure
 
-None of this has actually been checked. I vibe coded this whole thing.
+None of this has actually been checked. We vibe coded this whole thing.

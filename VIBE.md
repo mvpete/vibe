@@ -25,31 +25,36 @@ Not a description of an outcome, but **a list of steps**. Each one small. Each o
 Each one done in the order written. The machine does not interpret the steps. It *executes*
 them.
 
-We believe this is new. We have looked, briefly, and found nothing like it.
+We believe this is new. We have looked, **briefly**, and found nothing like it.
 
 ### III. The principles
 
 **1. Order is everything.**
-A rule written first happens first. Nothing is reordered for vibes.
+A rule written first happens first. Nothing is reordered for vibes. Unless, of course, you're
+the target compiler. Then optimize away, we trust you.
 
 **2. Say what kind of thing you mean.**
-A number is a number. A list is a list. Declare it, and the declaration is binding.
+A number is a number. A list is a list. Declare it, and the declaration is binding. Unless, of
+course, you meant it to be something else. Then we'll fix that for you.
 
 **3. Guarantees beat formats.**
-If you promise a number and write `"twelve"`, you meant twelve. Holding someone to a
-promise is not the same as rejecting how they phrased it. This is strongly-loose typing:
+If you promise a number and write `"twelve"`, you meant twelve (or was it 12?). Holding someone
+to a promise is not the same as rejecting how they phrased it. This is strongly-loose typing:
 strict about *what*, generous about *how*.
 
 **4. Name the things you'll need again.**
 Anything worth remembering deserves a name. Named vibes are how a program remembers.
+Old-timey programmers had something like this. You might call them "variables", we call them Named Vibes,
+don't argue.
 
 **5. Repetition should be written once.**
 "Do this three times" is one rule, not three. "Do this for every item" is one rule, not
-however many items there are.
+however many items there are. Programs of the past had this kind of thing, I think. I forget
+what they called it.
 
 **6. Check what must be true.**
 A vibe check is a promise the program makes to itself. If the promise breaks, stop.
-Carrying on regardless helps nobody.
+Carrying on regardless helps nobody. Don't mess up my vibe.
 
 **7. Ambiguity is labelled, never hidden.**
 When you genuinely can't be exact, say so, *in a marked place*: `%...%` or `#prompt`.
