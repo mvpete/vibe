@@ -112,9 +112,6 @@ public sealed class Printer
                 _indent--;
                 Line("}");
                 break;
-            case MainBlock mb:
-                Block("maincharacter", mb.Body);
-                break;
             case TryCatch t:
                 Line("try {");
                 _indent++;

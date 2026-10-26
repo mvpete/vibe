@@ -297,8 +297,6 @@ public sealed class Switch(int line, Expr subject, List<SwitchArm> arms) : Stmt(
     public List<SwitchArm> Arms { get; } = arms;
 }
 
-/// maincharacter { } - the program's entry point
-public sealed class MainBlock(int line, List<Stmt> body) : Stmt(line) { public List<Stmt> Body { get; } = body; }
 
 public sealed class TryCatch(int line, List<Stmt> body, string err, List<Stmt> handler) : Stmt(line)
 {

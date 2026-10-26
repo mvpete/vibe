@@ -84,7 +84,7 @@ public sealed class PromptPass(IModelProvider provider)
         ["exit"] = "- `exit` / `exit code` ends the program immediately (code 0 if none given).",
         ["sleep"] = "- `sleep seconds` pauses for that many seconds (a float). In a browser target, await a timer instead of blocking.",
         ["switch"] = "- `switch x { a, b => ...  _ => ... }` runs the first arm with a pattern equal to x (no fallthrough); `_` is the default; no match and no default does nothing.",
-        ["main"] = "- `maincharacter { }` marks the program's entry point. Top-level statements outside it still run first, in order, then it runs.",
+        ["main"] = "- `void main()` is the program's entry point. It becomes the target's own entry point (C#'s static Main, Rust's fn main, Go's func main, Python's if __name__ == \"__main__\": block): rename it to whatever the target requires, and never generate a separate function that the real entry point calls. Module variables are initialised before it runs.",
         ["lowkey"] = "- `lowkey a, b` prints like print but to stderr: quiet diagnostics.",
         ["highkey"] = "- `highkey a, b` prints like print, but uppercased and followed by \"!!\" - it's shouting.",
         ["spill"] = "- `spill x` is a debug print: writes `<x as written> = <value>` (e.g. `total = 3`) to stderr.",

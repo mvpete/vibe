@@ -161,3 +161,38 @@ public class StaticPassTests
         Assert.Empty(pass.Errors());
     }
 }
+
+public class MainTests
+{
+    [Fact]
+    public void MaincharacterIsJustMain()
+    {
+        Assert.Equal(Vibe.Print("void main() { print 1 }"), Vibe.Print("maincharacter { print 1 }"));
+        Assert.Contains("void main() {", Vibe.Print("maincharacter { print 1 }"));
+    }
+
+    [Fact]
+    public void WithAMainStatementsGoInsideIt()
+    {
+        var (_, pass) = Vibe.Analyze("int x = 1\nprint x\nmaincharacter { print 2 }");
+        Assert.Contains(pass.Errors(), e => e.Contains("statements go inside it"));
+    }
+
+    [Fact]
+    public void DeclarationsBesideMainAreFine()
+    {
+        var (_, pass) = Vibe.Analyze("based int max = 3\nint twice(int x) { return x * 2 }\nmaincharacter { print twice(max) }");
+        Assert.Empty(pass.Errors());
+        Assert.Contains("main", pass.Features);
+    }
+
+    [Theory]
+    [InlineData("void main(int x) { }", "takes no parameters")]
+    [InlineData("int main() { return 1 }", "returns nothing")]
+    [InlineData("if true { maincharacter { } }", "main goes at the top level")]
+    public void MainRules(string src, string message)
+    {
+        var (_, pass) = Vibe.Analyze(src);
+        Assert.Contains(pass.Errors(), e => e.Contains(message));
+    }
+}

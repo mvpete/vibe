@@ -28,7 +28,6 @@ public sealed class StaticPass(Knowledge knowledge)
     FnDecl? _currentFn;
     int _stmtLine;           // the statement being checked
     int? _outerLoopLine;     // the outermost loop around it, if any
-    bool _inMain;
     VType? _expected; // type the surrounding code wants from a call, for generated functions
     int _loopDepth;
 
@@ -66,12 +65,25 @@ public sealed class StaticPass(Knowledge knowledge)
         // functions are hoisted, so they can be called before they're declared
         foreach (var fn in program.OfType<FnDecl>())
         {
-            if (!_functions.TryAdd(fn.Name, fn)) Error(fn.Line, $"'{fn.Name}' is declared twice. pick a lane");
+            if (!_functions.TryAdd(fn.Name, fn))
+                Error(fn.Line, fn.Name == "main" ? "only one main (or maincharacter) allowed. this isn't an ensemble cast" : $"'{fn.Name}' is declared twice. pick a lane");
         }
+        foreach (var fn in All(program).OfType<FnDecl>().Where(f => !program.Contains(f)))
+            Error(fn.Line, fn.Name == "main" ? "main goes at the top level" : "functions go at the top level. keep it flat");
 
-        var mains = All(program).OfType<MainBlock>().ToList();
-        if (mains.Count > 1) Error(mains[1].Line, "only one maincharacter allowed. this isn't an ensemble cast");
-        foreach (var m in mains.Where(m => !program.Contains(m))) Error(m.Line, "maincharacter goes at the top level");
+        // void main() (or maincharacter) is the entry point: with one, statements go inside it
+        if (_functions.TryGetValue("main", out var main))
+        {
+            if (IsLibrary) Error(main.Line, "only the entry file has a main");
+            else
+            {
+                Features.Add("main");
+                if (main.Params.Count > 0) Error(main.Line, "main takes no parameters. env.args has the command line");
+                if (main.Ret != VType.Void) Error(main.Line, "main returns nothing. use exit <code> for an exit code");
+                foreach (var s in program.Where(s => s is not (FnDecl or Decl or PromptStmt or UseStmt)))
+                    Error(s.Line, "this file has a main, so statements go inside it");
+            }
+        }
 
         foreach (var u in All(program).OfType<UseStmt>())
         {
@@ -199,7 +211,6 @@ public sealed class StaticPass(Knowledge knowledge)
                 Repeat r => r.Body,
                 TryCatch t => t.Body.Concat(t.Handler),
                 Switch sw => sw.Arms.SelectMany(a => a.Body),
-                MainBlock m => m.Body,
                 _ => [],
             };
             foreach (var x in All(inner)) yield return x;
@@ -282,7 +293,7 @@ public sealed class StaticPass(Knowledge knowledge)
                 break;
 
             case FnDecl fn:
-                if (_currentFn != null) { Error(fn.Line, "functions inside functions? keep it flat for now"); break; }
+                if (_currentFn != null) break; // reported up front: functions go at the top level
                 for (int k = 0; k < fn.Params.Count; k++)
                     if (fn.Params[k].Default is { } def)
                         fn.Params[k] = fn.Params[k] with { Default = CoerceTo(Check(def), fn.Params[k].Type, fn.Line) };
@@ -361,12 +372,6 @@ public sealed class StaticPass(Knowledge knowledge)
                 break;
 
             case Return ret:
-                if (_currentFn == null && _inMain)
-                {
-                    // a bare return just ends the main block
-                    if (ret.Value != null) Error(ret.Line, "maincharacter doesn't return a value. use exit <code>");
-                    break;
-                }
                 if (_currentFn == null) { Error(ret.Line, "return to where? you're not in a function"); break; }
                 if (ret.Value == null)
                 {
@@ -414,13 +419,6 @@ public sealed class StaticPass(Knowledge knowledge)
                         arm.Patterns[k] = CoerceTo(CheckExpecting(arm.Patterns[k], sw.Subject.Type), sw.Subject.Type, sw.Line);
                     CheckBlock(arm.Body);
                 }
-                break;
-
-            case MainBlock mb:
-                Features.Add("main");
-                _inMain = true;
-                CheckBlock(mb.Body);
-                _inMain = false;
                 break;
 
             case VibeCheck v:

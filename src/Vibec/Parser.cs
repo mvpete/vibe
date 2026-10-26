@@ -151,7 +151,8 @@ public class Parser(List<Token> tokens)
             s = Declaration(line);
         else if (Match("if")) return IfStmt(line);
         else if (MatchAny("switch", "vibeshift")) return SwitchStmt(line);
-        else if (Match("maincharacter")) { var body = Block(); SkipNewlines(); return new MainBlock(line, body); }
+        // maincharacter { } is just another way to write void main() { }
+        else if (Match("maincharacter")) { var body = Block(); SkipNewlines(); return new FnDecl(line, "main", [], VType.Void, body); }
         else if (Match("while")) { var c = Condition(); return new While(line, c, Block()); }
         else if (MatchAny("for", "foreach")) return ForStmt(line);
         else if (Match("repeat"))

@@ -129,7 +129,7 @@ prints the standard form.
 | `null` | `idk` | |
 | `print ...` | `say ...` | |
 | `break` / `continue` | `ghost` / `nvm` | |
-| `return` | `itsgiving` | a bare return inside `maincharacter` ends it |
+| `return` | `itsgiving` | |
 | `x += 1` | `glowup x` | |
 | `throw x` | `yeet x` | message is `x` stringified |
 | `try { } catch (e) { }` | `sus (e)`, `ick (e)` | |
@@ -140,7 +140,7 @@ prints the standard form.
 | `switch x { a, b => ...  _ => ... }` | `vibeshift x { ... }` | first match wins, no fallthrough; `_` or `else` is the default; patterns are coerced to `x`'s type |
 | `sleep d` | `touchgrass d` | strongly-loose duration in seconds: `1.5`, `"half a second"`, `"2 minutes"` |
 | `exit` / `exit code` | `periodt` | |
-| | `maincharacter { }` | the entry point; runs after other top-level statements |
+| `void main() { }` | `maincharacter { }` | the entry point; becomes the target's own entry point. With a main, the file's other top-level code is declarations only |
 | | `spill x` | debug print to stderr: `x = 3` |
 | | `lowkey a, b` | print to stderr |
 | | `highkey a, b` | print, uppercased, with `!!` |
