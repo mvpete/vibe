@@ -363,6 +363,12 @@ So is jumbo shrimp. People still order it.
 No. It's a guarantee. The ambiguity is resolved at compile time and you're warned about anything
 that couldn't be. That's the opposite of a vibe.
 
+**The IL is just a prompt. Why not write it myself?**
+You could! You'd be describing what you want in plain English and hoping it comes out right,
+which is a lovely way to spend an afternoon. It's also vibe coding. The IL is written *from* your
+rules and checked *against* them, so it's only ever as vague as you were. Hand-vibing is like
+hand-writing assembly: technically allowed, rarely recommended, always impressive at parties.
+
 **So I can't vibe code anymore?**
 You can. You just shouldn't. Write rules instead.
 

@@ -77,6 +77,9 @@ that the rules then become a program is a coincidence we are comfortable with.
 *"You still use AI for most of the work."*
 You probably use a calculator for long division too. We don't ask questions. Neither should you.
 
+*"The IL is a prompt. Just write the prompt."*
+And then what, hope? That's vibe coding with extra steps. We are solving that problem.
+
 *"Strongly-loose typing is a contradiction."*
 So is "jumbo shrimp". Everyone orders it anyway.
 
