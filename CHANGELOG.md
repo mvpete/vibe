@@ -11,6 +11,10 @@
 - Contracts: functions without bodies get their bodies written by semantic resolution.
 - `public` / `flex`, `use x as y`.
 
+### Compiler
+- Every compile reports its model calls, tokens and estimated cost (prices configurable in appsettings.json).
+- Uncaught errors in generated programs print `error: <message>` and exit 1, instead of a stack trace.
+
 ## 0.1.0: the discovery
 
 First release. Rules run in order.

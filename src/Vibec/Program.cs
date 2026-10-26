@@ -57,10 +57,14 @@ using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
+MeteredProvider? provider = null;
 try
 {
     var settings = Settings.Load();
-    var provider = ProviderFactory.Create(opts.GetValueOrDefault("provider"), opts.GetValueOrDefault("model"), opts.GetValueOrDefault("base-url"), settings);
+    var inner = ProviderFactory.Create(opts.GetValueOrDefault("provider"), opts.GetValueOrDefault("model"), opts.GetValueOrDefault("base-url"), settings);
+    var price = settings.Pricing.GetValueOrDefault(inner.Model) ?? MeteredProvider.DefaultPrices.GetValueOrDefault(inner.Model);
+    if (inner.Name == "ollama") price ??= new Price(0, 0); // local: free
+    provider = new MeteredProvider(inner, price);
 
     if (positional[0] == "doctor")
         return await Doctor.RunAsync(provider, positional.ElementAtOrDefault(1), opts.ContainsKey("refresh"), opts.ContainsKey("yes"), cts.Token);
@@ -100,4 +104,9 @@ catch (OperationCanceledException)
 {
     Console.Error.WriteLine("  cancelled. the vibes will keep.");
     return 130;
+}
+finally
+{
+    // what this compile cost, success or not
+    if (provider is { Calls: > 0 }) Console.WriteLine($"  {"usage",-12} {provider.Summary()}");
 }

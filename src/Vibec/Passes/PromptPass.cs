@@ -40,6 +40,7 @@ public sealed class PromptPass(IModelProvider provider)
               shortest round-trip form with at least one decimal (2.0, 0.1); bools print true/false; lists print like [1, 2, 3].
             - `+` with a string on either side concatenates, stringifying the other side as print would.
             - int / int is integer division truncating toward zero; % is remainder.
+            - Any error that nothing catches prints `error: <message>` to stderr and exits with code 1. No stack traces.
             - f"...{expr}..." interpolates exactly like print would format the value.
             - Duration literals (500ms, 2s, 5m, 1h) are float seconds.
             - Named arguments (`timeout: 2s`) bind to the parameter with that name; omitted parameters take their defaults.

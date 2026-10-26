@@ -199,6 +199,12 @@ $vibec = "src\Vibec\bin\Debug\net9.0\vibec.exe"
 The first time you target a language, `vibec` works out how to compile it on your machine and
 shows you the exact commands before running anything. Approve once and it remembers.
 
+Every compile ends with what it cost:
+
+```
+  usage        2 model call(s), 3,067 in + 13,816 out tokens, ~$0.1420 (estimated)
+```
+
 Output goes next to your rules:
 
 ```
