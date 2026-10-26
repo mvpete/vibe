@@ -329,7 +329,9 @@ other `#` lines are comments. Write `%%` for a literal `%` inside an inline prom
 
 ## Vibe grammar
 
-English, minus the ambiguity. `{ x }` means zero or more, `[ x ]` means optional, `|` means or.
+The pseudo-English you'd use to describe a program, with a formal grammar: procedural, one
+instruction per line, every word meaning one thing. `{ x }` means zero or more, `[ x ]` means
+optional, `|` means or.
 A statement ends at a newline or `;`. Gen Z spellings are left out for brevity: wherever a word
 below has an alias in the table above (`true`/`nocap`, `catch`/`sus`, ...), either one works.
 

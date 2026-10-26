@@ -45,21 +45,23 @@ You will never get "third" before "first". Try getting that guarantee from a vib
 
 ### Vibe grammar
 
-English is great for vibes. "Grab the thing from the place when it's ready" works on people.
-It doesn't work on machines, and honestly it's touch and go with people.
-
-So we developed **Vibe grammar**. It's like English, but every sentence means exactly one thing.
-Sentences end at the end of the line. Nouns say what kind of thing they are. Verbs take their
-objects in a fixed order. There are no idioms, except the ones we added on purpose (`nocap`).
+When you vibe code, you write English and hope. When you write Vibe, you still write English.
+Sort of. It's **Vibe grammar**: the same words you'd type into a chat box, arranged into rules
+a machine can't argue with.
 
 ```
-English:  if there are more than ten, say that's a lot, otherwise say that's fine
-Vibe:     if count > 10 { print "that's a lot" } else { print "that's fine" }
+Vibe coding:  "make it say hi to whoever's there. forever, I guess"
+
+Vibe:         while infinity {
+                  string name = %ask the user their name%
+                  print "hello {$name}"
+              }
 ```
 
-Same sentence. Only one of them can't be misunderstood. Linguists have a name for this kind of
-thing, a "formal grammar". We call it English with the vibes taken out. The whole thing fits on
-one page of [SPEC.md](SPEC.md#vibe-grammar).
+Same idea. Less vibe, more rigor. It's less verbose too.
+
+Some people call this "pseudocode". We just decided to make it compile. [The whole grammar fits on one
+page](SPEC.md#vibe-grammar), which is more than English can say.
 
 ### Named vibes
 
