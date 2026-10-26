@@ -62,6 +62,7 @@ public sealed class PromptPass(IModelProvider provider)
         ["vibecheck"] = "- `vibecheck cond` is an assertion: if false, write `vibe check failed: <the condition as written>` to stderr and exit with code 1.",
         ["try"] = "- `try { } catch (e) { }` catches any error raised in the block; `e` is the error's message as a string.",
         ["for-int"] = "- `for i in n` (n an int) iterates i = 0 .. n-1.",
+        ["print-options"] = "- `print(a, b, sep: s, end: e)` separates the arguments with s (default: one space) and finishes with e (default: a newline). `end: \"\"` prints with no newline; flush output so it appears immediately.",
         ["typed-for"] = "- `for T x in xs` converts each element to T with the vibe<T> rules as it goes.",
         ["c-for"] = "- `for (init; cond; step)` is a C-style loop: init once, check cond before each pass, run step after each pass (including after continue).",
         ["repeat"] = "- `repeat n times { }` runs the block n times.",

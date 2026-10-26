@@ -249,6 +249,7 @@ public sealed class Say(int line, List<Expr> args) : Stmt(line)
     public List<Expr> Args { get; } = args;
     public SayMode Mode { get; init; }
     public string? Label { get; set; } // spill: the expression as written
+    public List<NamedArg> Named { get; init; } = []; // end: and sep:, Python style
 }
 
 /// assert / vibecheck / fr. With Assume (delulu), it's taken as true and never checked.

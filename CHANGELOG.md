@@ -14,6 +14,7 @@
   library modules and cycle detection. Contract bodies are written from the module's prompt and the modules it uses.
 - Every `for` spelling: `for`/`foreach`, optional parens, typed or `var` loop variables, `in`/`of`/`:`, plus C-style `for (;;)`.
 - `int(x)`, `float(x)`, `string(x)`, `bool(x)`, `json(x)` conversions.
+- `print ... end: ""` / `sep: ", "`, and `write` (print without a newline).
 - FTFY: obvious mistakes (typos of names in scope, loops that read the list instead of the item, stray `}` after an
   interpolation) are fixed in your source file. `--no-ftfy` warns instead; `vibec undo` / `vibec nvm` puts it back.
 

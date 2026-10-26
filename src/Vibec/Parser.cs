@@ -187,15 +187,20 @@ public class Parser(List<Token> tokens)
         {
             // print "hello" - Python 2 never really left us
             Next();
-            var args = new List<Expr> { Expression() };
-            while (Match(",")) args.Add(Expression());
-            s = new Say(line, args);
+            var (args, named) = BareArgs();
+            s = new Say(line, args) { Named = named };
         }
         else if (Match("say"))
         {
-            var args = new List<Expr> { Expression() };
-            while (Match(",")) args.Add(Expression());
-            s = new Say(line, args);
+            var (args, named) = BareArgs();
+            s = new Say(line, args) { Named = named };
+        }
+        else if (MatchAny("write", "output"))
+        {
+            // write "x" / output "x" is print "x" end: ""
+            var (args, named) = At("(") ? Args() : BareArgs();
+            if (!named.Any(n => n.Name == "end")) named.Add(new NamedArg("end", new Lit(line, "", VType.Str)));
+            s = new Say(line, args) { Named = named };
         }
         else if (MatchAny("vibecheck", "assert", "fr")) s = new VibeCheck(line, Expression());
         else if (MatchAny("assume", "delulu")) s = new VibeCheck(line, Expression()) { Assume = true };
@@ -282,8 +287,8 @@ public class Parser(List<Token> tokens)
         if (e is VibeExpr v) return new PromptStmt(line, v.Text);
 
         // print(...) is the Python/JS spelling of `say`
-        if (e is Call { Name: "print" } call) return new Say(line, call.Args);
-        if (e is Member { Target: Ident { Name: "console" }, Name: "log", Args: { } logArgs }) return new Say(line, logArgs);
+        if (e is Call { Name: "print" } call) return new Say(line, call.Args) { Named = call.Named };
+        if (e is Member { Target: Ident { Name: "console" }, Name: "log", Args: { } logArgs } log) return new Say(line, logArgs) { Named = log.Named };
         return new ExprStmt(line, e);
     }
 

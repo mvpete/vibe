@@ -129,3 +129,36 @@ public class ParserTests
         Assert.Throws<VibeError>(() => Vibe.Parse("try { print 1 }"));
     }
 }
+
+public class PrintOptionTests
+{
+    [Theory]
+    [InlineData("print \"Loading\" end: \"\"", "print(\"Loading\", end: \"\")")]
+    [InlineData("print(\"Loading\", end: \"\")", "print(\"Loading\", end: \"\")")]
+    [InlineData("write \"Loading\"", "print(\"Loading\", end: \"\")")]
+    [InlineData("output \"Loading\"", "print(\"Loading\", end: \"\")")]
+    [InlineData("output(\"a\", \"b\")", "print(\"a\", \"b\", end: \"\")")]
+    [InlineData("print \"a\", \"b\" sep: \", \"", "print(\"a\", \"b\", sep: \", \")")]
+    [InlineData("say \"a\" end: \"!\\n\"", "print(\"a\", end: \"!\\n\")")]
+    public void EndAndSep(string src, string expected)
+    {
+        var (program, pass) = Vibe.Analyze(src);
+        Assert.Empty(pass.Errors());
+        Assert.Equal(expected, Printer.Print(program).Trim());
+        Assert.Contains("print-options", pass.Features);
+    }
+
+    [Fact]
+    public void OnlyEndAndSep()
+    {
+        var (_, pass) = Vibe.Analyze("print \"a\" color: \"red\"");
+        Assert.Contains(pass.Errors(), e => e.Contains("end: and sep:"));
+    }
+
+    [Fact]
+    public void PlainPrintIsUnchanged()
+    {
+        var (_, pass) = Vibe.Analyze("print \"a\", \"b\"");
+        Assert.DoesNotContain("print-options", pass.Features);
+    }
+}

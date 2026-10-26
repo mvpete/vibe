@@ -365,6 +365,12 @@ public sealed class StaticPass(Knowledge knowledge)
             case Say s:
                 if (s.Mode == SayMode.Spill) s.Label = Printer.Print(s.Args[0]);
                 for (int k = 0; k < s.Args.Count; k++) s.Args[k] = Check(s.Args[k]);
+                foreach (var n in s.Named)
+                {
+                    if (n.Name is not ("end" or "sep")) Error(s.Line, $"print takes end: and sep:, not '{n.Name}:'");
+                    n.Value = CoerceTo(Check(n.Value), VType.Str, s.Line);
+                    Features.Add("print-options");
+                }
                 if (s.Mode == SayMode.Low) Features.Add("lowkey");
                 if (s.Mode == SayMode.High) Features.Add("highkey");
                 if (s.Mode == SayMode.Spill) Features.Add("spill");

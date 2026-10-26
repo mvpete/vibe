@@ -26,7 +26,7 @@ public static class Lexer
         "const", "based", "global", "rentfree", "assume", "delulu", "ick",
         "spill", "lowkey", "highkey", "maincharacter",
         // modules
-        "json", "use", "as", "public", "flex", "native", "foreach",
+        "json", "use", "as", "public", "flex", "native", "foreach", "write", "output",
     ];
 
     static readonly string[] Operators =

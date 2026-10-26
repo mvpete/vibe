@@ -100,6 +100,8 @@ try {
 ```
 
 - No semicolons needed (newlines end statements; `;` also works).
+- `print` and `say` end with a newline; `write` and `output` don't. For anything in between,
+  `print "Loading" end: "..."` sets the ending and `sep: ", "` the separator between arguments.
 - Calls don't need parentheses: `greet "world"`, `add 1, 2`, `xs.push 4`, `for i in range 5`.
   A name followed on the same line by a value is a call; arguments are comma-separated. Operators
   keep their meaning (`x - 1` is subtraction). A declared function with no parameters can be called by

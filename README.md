@@ -129,7 +129,7 @@ int lucky = GenerateLuckyNumber()
 warning: line 1: 'GenerateLuckyNumber' isn't defined. vibed one up: int GenerateLuckyNumber()
 ```
 
-### Rules you didn't quite write
+### Compiler... you know what I meant.
 
 Sometimes you write one thing and obviously mean another. Vibe notices, fixes your file, and
 tells you:

@@ -83,7 +83,7 @@ public sealed class Printer
                 Line(r.Value == null ? "return" : $"return {T(r.Value)}");
                 break;
             case Say s:
-                var args = string.Join(", ", s.Args.Select(T));
+                var args = ArgList(s.Args, s.Named);
                 Line(s.Mode switch
                 {
                     SayMode.Low => $"lowkey {args}",
