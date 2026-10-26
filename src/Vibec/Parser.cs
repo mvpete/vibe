@@ -270,11 +270,11 @@ public class Parser(List<Token> tokens)
     {
         var e = Expression();
 
-        if (At("++") || At("--"))
+        // i++ on its own is just an increment
+        if (e is IncDec inc)
         {
-            RequireAssignable(e, line);
-            var op = Next().Text == "++" ? "+=" : "-=";
-            return new Assign(line, e, op, new Lit(line, 1L, VType.Int));
+            RequireAssignable(inc.Target, line);
+            return new Assign(line, inc.Target, inc.Op == "++" ? "+=" : "-=", new Lit(line, 1L, VType.Int));
         }
         if (At("=") || At("+=") || At("-=") || At("*=") || At("/="))
         {
@@ -464,6 +464,7 @@ public class Parser(List<Token> tokens)
     Expr UnaryExpr()
     {
         if (At("-")) { int l = Next().Line; return new Unary(l, "-", UnaryExpr()); }
+        if (At("++") || At("--")) { var op = Next(); return new IncDec(op.Line, UnaryExpr(), op.Text, prefix: true); }
         return Postfix();
     }
 
@@ -547,6 +548,7 @@ public class Parser(List<Token> tokens)
                 Expect("]");
                 e = new Index(l, e, idx);
             }
+            else if (At("++") || At("--")) e = new IncDec(e.Line, e, Next().Text, prefix: false);
             else if (At("."))
             {
                 int l = Next().Line;
@@ -663,7 +665,10 @@ public class Parser(List<Token> tokens)
             if (close < 0) throw new VibeError("unclosed '{' in an f-string", t.Line);
             if (chunk.Length > 0) { parts.Add(chunk.ToString()); chunk.Clear(); }
             var inner = Lexer.Lex(text[(i + 1)..close]).Select(k => k with { Line = t.Line }).ToList();
-            parts.Add(new Parser(inner).Expression());
+            var sub = new Parser(inner);
+            parts.Add(sub.Expression());
+            if (sub.Peek().Type != Tok.Eof)
+                throw new VibeError($"'{text[(i + 1)..close]}' isn't a single expression (stuck at '{sub.Peek().Text}')", t.Line);
             i = close;
         }
         if (chunk.Length > 0) parts.Add(chunk.ToString());

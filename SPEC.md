@@ -109,6 +109,7 @@ try {
 - Strings: `f"{x}"` / `$"{x}"` interpolate every `{...}`; plain `"..."` strings interpolate only `{$x}` and `${x}`.
 - Comments: `#` and `//` to end of line, `/* ... */` blocks.
 - Operators: `+ - * / %`, `== != < > <= >=`, `kinda`, `and or not` / `&& || !`, `= += -= *= /= ++ --`.
+- `i++` / `i--` work inside expressions (the value, then the change); `++i` / `--i` change first.
 - `+` with a string concatenates; `int / int` is integer division.
 - `maybe` is a fresh coin flip each time it's evaluated.
 
@@ -260,6 +261,7 @@ When the compiler is sure what you meant, it fixes your source file, prints each
 | `print lukcy` | `print lucky` | a typo of a name in scope (decided by semantic resolution) |
 | `for item in res { print res.ticker }` | `item.ticker` | the loop variable is never used, but the list's fields are |
 | `"${x}}"` | `"${x}"` | a stray `}` straight after an interpolation |
+| `say "${i++} ..."` with no `i` | adds `int i = 0` before the loop | a `++`/`--` on an undeclared name is a counter |
 
 Every FTFY run keeps a before/after copy in `.vibe-int/ftfy/`. `vibec undo file.vibe` (or
 `vibec nvm file.vibe`) restores the most recent one; run it again to go further back. Undo refuses

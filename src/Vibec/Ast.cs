@@ -117,6 +117,14 @@ public sealed class Member(int line, Expr target, string name, List<Expr>? args)
     public string? Meaning { get; set; }
 }
 
+/// `i++`, `i--`, `++i`, `--i` used as values.
+public sealed class IncDec(int line, Expr target, string op, bool prefix) : Expr(line)
+{
+    public Expr Target { get; set; } = target;
+    public string Op { get; } = op;
+    public bool Prefix { get; } = prefix;
+}
+
 public sealed class Index(int line, Expr target, Expr index) : Expr(line)
 {
     public Expr Target { get; set; } = target;

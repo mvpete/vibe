@@ -26,6 +26,8 @@ public sealed class StaticPass(Knowledge knowledge)
     readonly Dictionary<string, ModuleInfo> _modules = []; // name (or alias) → module, from `use`
     readonly HashSet<string> _asked = [];
     FnDecl? _currentFn;
+    int _stmtLine;           // the statement being checked
+    int? _outerLoopLine;     // the outermost loop around it, if any
     bool _inMain;
     VType? _expected; // type the surrounding code wants from a call, for generated functions
     int _loopDepth;
@@ -170,6 +172,7 @@ public sealed class StaticPass(Knowledge knowledge)
             Member m => (m.Args ?? []).Concat(m.Named.Select(n => n.Value)).Prepend(m.Target),
             Index ix => [ix.Target, ix.IndexExpr],
             Lambda lam => [lam.Body],
+            IncDec inc => [inc.Target],
             Ask a => a.Prompt is { } p ? [p] : [],
             Cast c => [c.Inner],
             Coerce c => [c.Inner],
@@ -221,6 +224,15 @@ public sealed class StaticPass(Knowledge knowledge)
     }
 
     void CheckStmt(Stmt stmt)
+    {
+        _stmtLine = stmt.Line;
+        bool outermostLoop = stmt is For or While or CFor or Repeat && _outerLoopLine == null;
+        if (outermostLoop) _outerLoopLine = stmt.Line;
+        try { CheckStmtCore(stmt); }
+        finally { if (outermostLoop) _outerLoopLine = null; }
+    }
+
+    void CheckStmtCore(Stmt stmt)
     {
         switch (stmt)
         {
@@ -493,6 +505,9 @@ public sealed class StaticPass(Knowledge knowledge)
             case Lambda lam:
                 return CheckLambda(lam, lam.Params.Select(_ => VType.Vibe).ToList());
 
+            case IncDec inc:
+                return CheckIncDec(inc);
+
             case Ask a:
                 Features.Add("ask");
                 if (a.Prompt != null) a.Prompt = Check(a.Prompt);
@@ -551,6 +566,26 @@ public sealed class StaticPass(Knowledge knowledge)
         Ask(new Question { Kind = QuestionKind.Name, Key = key, Line = id.Line, Name = id.Name, Candidates = candidates, Expected = expected });
         id.Type = expected ?? VType.Vibe;
         return id;
+    }
+
+    Expr CheckIncDec(IncDec inc)
+    {
+        Features.Add("incdec");
+        inc.Type = VType.Int;
+        if (inc.Target is Ident counter && Lookup(counter.Name) == null && !_functions.ContainsKey(counter.Name))
+        {
+            // i++ on a name nobody declared: it's a counter. declare it before the loop it lives in
+            counter.Type = VType.Int;
+            Fixes.Add(new Fix(_outerLoopLine ?? _stmtLine, "", $"int {counter.Name} = 0", $"'{counter.Name}' is a counter nobody declared", Insert: true));
+            Error(inc.Line, $"'{counter.Name}' isn't declared. it's obviously a counter: FTFY adds 'int {counter.Name} = 0' before the loop");
+            return inc;
+        }
+        inc.Target = Check(inc.Target);
+        if (inc.Target is not (Ident or Index or Member { Args: null })) Error(inc.Line, $"{inc.Op} needs a variable");
+        else if (inc.Target is Ident id && IsConst(id.Name)) Error(inc.Line, $"'{id.Name}' is const. it doesn't change. that's the point");
+        else if (!inc.Target.Type.IsNumeric && !inc.Target.Type.IsDynamic) Error(inc.Line, $"can't {inc.Op} a {inc.Target.Type}");
+        inc.Type = inc.Target.Type;
+        return inc;
     }
 
     Expr CheckBinary(Binary b)

@@ -3,9 +3,11 @@ using System.Text.RegularExpressions;
 namespace Vibec;
 
 /// A "you know what I mean" error the compiler is confident about: on this line, `Old` should be `New`.
-public sealed record Fix(int Line, string Old, string New, string Why, string? File = null)
+/// With Insert, New goes on a line of its own before Line (Old is unused).
+public sealed record Fix(int Line, string Old, string New, string Why, string? File = null, bool Insert = false)
 {
-    public override string ToString() => $"{(File != null ? File + " " : "")}line {Line}: {Old} → {New} ({Why})";
+    public override string ToString() =>
+        $"{(File != null ? File + " " : "")}line {Line}: " + (Insert ? $"+ {New}" : $"{Old} → {New}") + $" ({Why})";
 }
 
 /// FTFY: fixed that for you. Applies fixes to source text, one line at a time.
@@ -14,12 +16,20 @@ public static class Ftfy
     /// Applies the fixes that still match; returns the new text and the fixes that applied.
     public static (string Text, List<Fix> Applied) Apply(string text, IEnumerable<Fix> fixes)
     {
-        var lines = text.Split('\n');
+        var lines = text.Split('\n').ToList();
         var applied = new List<Fix>();
-        foreach (var fix in fixes)
+        // bottom-up, so inserting a line doesn't move the lines later fixes point at
+        foreach (var fix in fixes.OrderByDescending(f => f.Line))
         {
             int i = fix.Line - 1;
-            if (i < 0 || i >= lines.Length) continue;
+            if (i < 0 || i >= lines.Count) continue;
+            if (fix.Insert)
+            {
+                var indent = lines[i][..(lines[i].Length - lines[i].TrimStart().Length)];
+                lines.Insert(i, indent + fix.New + (lines[i].EndsWith('\r') ? "\r" : ""));
+                applied.Add(fix);
+                continue;
+            }
             // whole words for names (lukcy, res.ticker); exact text otherwise (string literals)
             var pattern = Regex.Escape(fix.Old);
             if (Regex.IsMatch(fix.Old, @"^\w")) pattern = @"(?<![\w])" + pattern;

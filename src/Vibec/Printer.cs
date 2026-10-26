@@ -208,6 +208,7 @@ public sealed class Printer
                 if (m.Meaning != null) _notes.Add($"{(m.Module != null ? m.Module : "")}.{m.Name}: {m.Meaning}");
                 return m.Args == null && m.Named.Count == 0 ? $"{E(m.Target)}.{m.Name}" : $"{E(m.Target)}.{m.Name}({ArgList(m.Args, m.Named)})";
             case Index ix: return $"{E(ix.Target)}[{E(ix.IndexExpr)}]";
+            case IncDec inc: return inc.Prefix ? inc.Op + E(inc.Target) : E(inc.Target) + inc.Op;
             case Lambda lam:
                 var ps = lam.Params.Count == 1 ? lam.Params[0] : $"({string.Join(", ", lam.Params)})";
                 return $"{ps} => {E(lam.Body)}";

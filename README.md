@@ -147,7 +147,7 @@ ftfy    fixed 3 thing(s) in your source. changed your mind? vibec undo app.vibe
 ```
 
 I call this **FTFY**. It only fixes what you obviously meant: typos of names in scope, loops that
-read the list instead of the item, stray braces. Everything else is still your problem.
+read the list instead of the item, stray braces, a counter you forgot to declare. Everything else is still your problem.
 
 Not ready to let go? `--no-ftfy` turns the fixes into warnings. Regret it? `vibec undo app.vibe`
 (or `vibec nvm app.vibe`) puts back exactly what was there, one FTFY at a time.
