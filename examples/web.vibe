@@ -1,0 +1,3 @@
+use http
+
+json res = http.get "https://bing.ca" timeout: 2s; print res.field

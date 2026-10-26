@@ -1,6 +1,6 @@
 namespace Vibec;
 
-public enum Tok { Ident, Keyword, Int, Float, String, Interp, Prompt, InlinePrompt, Op, Newline, Eof }
+public enum Tok { Ident, Keyword, Int, Float, Duration, String, Interp, Prompt, InlinePrompt, Op, Newline, Eof }
 
 public record Token(Tok Type, string Text, int Line, object? Value = null);
 
@@ -25,12 +25,14 @@ public static class Lexer
         "throw", "yeet", "exit", "periodt", "sleep", "touchgrass", "switch", "vibeshift",
         "const", "based", "global", "rentfree", "assume", "delulu", "ick",
         "spill", "lowkey", "highkey", "maincharacter",
+        // modules
+        "json", "use", "as", "public", "flex", "native",
     ];
 
     static readonly string[] Operators =
         ["->", "=>", "==", "!=", "<=", ">=", "+=", "-=", "*=", "/=", "++", "--", "&&", "||",
          "+", "-", "*", "/", "%", "<", ">", "=", "!",
-         "(", ")", "{", "}", "[", "]", ",", ".", ";"];
+         "(", ")", "{", "}", "[", "]", ",", ".", ":", ";"];
 
     public static List<Token> Lex(string src)
     {
@@ -154,6 +156,15 @@ public static class Lexer
                     while (i < src.Length && (char.IsAsciiDigit(src[i]) || src[i] == '_')) i++;
                 }
                 var text = src[s..i].Replace("_", "");
+
+                // 500ms, 2s, 5m, 1h, 1d: durations, in seconds
+                if (DurationUnit(src, i) is { } unit)
+                {
+                    var seconds = double.Parse(text, System.Globalization.CultureInfo.InvariantCulture) * unit.Seconds;
+                    i += unit.Suffix.Length;
+                    Push(Tok.Duration, text + unit.Suffix, seconds);
+                    continue;
+                }
                 if (isFloat) Push(Tok.Float, text, double.Parse(text, System.Globalization.CultureInfo.InvariantCulture));
                 else Push(Tok.Int, text, long.Parse(text));
                 continue;
@@ -187,6 +198,20 @@ public static class Lexer
 
     static readonly HashSet<string> ValueKeywords = ["true", "false", "yeah", "nah", "nocap", "cap", "W", "L", "null", "idk", "maybe"];
 
+    static readonly (string Suffix, double Seconds)[] DurationUnits = [("ms", 0.001), ("s", 1), ("m", 60), ("h", 3600), ("d", 86400)];
+
+    static (string Suffix, double Seconds)? DurationUnit(string src, int i)
+    {
+        foreach (var u in DurationUnits)
+        {
+            int end = i + u.Suffix.Length;
+            if (string.CompareOrdinal(src, i, u.Suffix, 0, u.Suffix.Length) == 0
+                && (end >= src.Length || !(char.IsAsciiLetterOrDigit(src[end]) || src[end] == '_')))
+                return u;
+        }
+        return null;
+    }
+
     /// True when the next token would start a value (so `%` opens a prompt, not a remainder).
     static bool AtOperandPosition(List<Token> tokens)
     {
@@ -194,7 +219,7 @@ public static class Lexer
         var prev = tokens[^1];
         return prev.Type switch
         {
-            Tok.Ident or Tok.Int or Tok.Float or Tok.String or Tok.Interp or Tok.InlinePrompt => false,
+            Tok.Ident or Tok.Int or Tok.Float or Tok.Duration or Tok.String or Tok.Interp or Tok.InlinePrompt => false,
             Tok.Op => prev.Text is not (")" or "]"),
             Tok.Keyword => !ValueKeywords.Contains(prev.Text),
             _ => true,

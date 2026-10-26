@@ -28,12 +28,14 @@ public sealed class VibePass(IModelProvider provider)
           e.g. `return %a random int from 1 to 100%`. Also set `returns` and a one-sentence `meaning`.
         - "member": a method/property that isn't built in. Set `returns` (a Vibe type) and a
           one-sentence `meaning` describing what it does. ok=false only if it's nonsense.
+          If `module` is set, it's a call into a module the program didn't import (like http.get):
+          say what it most plausibly does with its arguments; prefer `expected` for `returns`.
         - "name": an undeclared identifier. If it's clearly a typo of one of `candidates`, set
           `rename`. Otherwise, if the word has an obvious meaning where it's used (`infinity` as a
           loop condition → true, `pi` as a float → 3.14159, `nothing` as a string → ""), set `value`
           (JSON text) and `returns` (its type; must equal `expected` when given). Otherwise ok=false.
 
-        Vibe types: int, float, string, bool, list<T>, vibe (dynamic), void.
+        Vibe types: int, float, string, bool, list<T>, json, vibe (dynamic), void.
 
         Vibe syntax, for writing functions:
             int add(int a, int b) {
@@ -155,7 +157,9 @@ public sealed class VibePass(IModelProvider provider)
                 o["expected"] = q.Expected?.ToString();
                 break;
             case QuestionKind.Member:
-                o["receiver"] = q.Receiver!.ToString();
+                if (q.Module != null) o["module"] = q.Module; else o["receiver"] = q.Receiver!.ToString();
+                if (q.Expected != null) o["expected"] = q.Expected.ToString();
+                if (q.Named is { Count: > 0 }) o["namedArgs"] = new JsonArray(q.Named.Select(n => (JsonNode)n).ToArray());
                 o["name"] = q.Name;
                 o["isProperty"] = q.IsProperty;
                 if (q.ArgTypes != null) o["argTypes"] = new JsonArray(q.ArgTypes.Select(t => (JsonNode)t.ToString()).ToArray());

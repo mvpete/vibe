@@ -17,10 +17,12 @@ public sealed class StaticPass(Knowledge knowledge)
     public List<Diagnostic> Diagnostics { get; } = [];
     public HashSet<string> Features { get; } = [];
     public List<FnDecl> Generated { get; } = []; // functions the vibe pass wrote
+    public Dictionary<string, SortedSet<string>> UsedStd { get; } = []; // std module → functions called
 
     readonly List<Dictionary<string, VType>> _scopes = [];
     readonly List<HashSet<string>> _consts = [];
     readonly Dictionary<string, FnDecl> _functions = [];
+    readonly Dictionary<string, ModuleInfo> _modules = []; // name (or alias) → module, from `use`
     readonly HashSet<string> _asked = [];
     FnDecl? _currentFn;
     bool _inMain;
@@ -59,6 +61,14 @@ public sealed class StaticPass(Knowledge knowledge)
         if (mains.Count > 1) Error(mains[1].Line, "only one maincharacter allowed. this isn't an ensemble cast");
         foreach (var m in mains.Where(m => !program.Contains(m))) Error(m.Line, "maincharacter goes at the top level");
 
+        foreach (var u in All(program).OfType<UseStmt>())
+        {
+            if (!program.Contains(u)) { Error(u.Line, "use goes at the top level"); continue; }
+            var module = StdLib.Get(u.Module);
+            if (module == null) { Error(u.Line, $"can't find module '{u.Module}'. the standard library has: {string.Join(", ", StdLib.Names)}"); continue; }
+            if (!_modules.TryAdd(u.Name, module)) Error(u.Line, $"'{u.Name}' is used twice");
+        }
+
         Push();
         // globals (rentfree) live in everyone's head from the start, wherever they're declared
         foreach (var g in All(program).OfType<Decl>().Where(d => d.Global))
@@ -76,7 +86,7 @@ public sealed class StaticPass(Knowledge knowledge)
     /// Check, telling a call what type its caller wants back.
     Expr CheckExpecting(Expr e, VType? expected)
     {
-        _expected = e is Call or Ident ? expected : null;
+        _expected = e is Call or Ident or Member ? expected : null;
         var result = Check(e);
         _expected = null;
         return result;
@@ -158,6 +168,7 @@ public sealed class StaticPass(Knowledge knowledge)
                 else
                 {
                     d.Resolved = d.DeclType;
+                    if (d.DeclType == VType.Json) Features.Add("json");
                     if (d.Init != null) d.Init = CoerceTo(CheckExpecting(d.Init, d.DeclType), d.DeclType, d.Line);
                 }
                 if (d.Const)
@@ -188,6 +199,11 @@ public sealed class StaticPass(Knowledge knowledge)
 
             case FnDecl fn:
                 if (_currentFn != null) { Error(fn.Line, "functions inside functions? keep it flat for now"); break; }
+                for (int k = 0; k < fn.Params.Count; k++)
+                    if (fn.Params[k].Default is { } def)
+                        fn.Params[k] = fn.Params[k] with { Default = CoerceTo(Check(def), fn.Params[k].Type, fn.Line) };
+                if (fn.Native && !fn.Generated) { Error(fn.Line, "native functions live in the standard library. write a body, or leave it off and let the vibes write one"); break; }
+                if (!fn.HasBody && fn.Body.Count == 0) FillContract(fn);
                 _currentFn = fn;
                 Push();
                 foreach (var p in fn.Params) Declare(p.Name, p.Type);
@@ -215,7 +231,7 @@ public sealed class StaticPass(Knowledge knowledge)
                 if (it.IsList) f.VarType = it.Elem!;
                 else if (it == VType.Str) f.VarType = VType.Str;
                 else if (it == VType.Int) { f.VarType = VType.Int; Features.Add("for-int"); }
-                else if (it == VType.Vibe) f.VarType = VType.Vibe;
+                else if (it.IsDynamic) f.VarType = it;
                 else Error(f.Line, $"can't loop over a {it}");
                 _loopDepth++;
                 Push();
@@ -304,6 +320,9 @@ public sealed class StaticPass(Knowledge knowledge)
                 Pop();
                 break;
 
+            case UseStmt:
+                break;
+
             case PromptStmt p:
                 Features.Add(p.Global ? "global-prompt" : "prompt");
                 break;
@@ -363,9 +382,9 @@ public sealed class StaticPass(Knowledge knowledge)
                 var tt = ix.Target.Type;
                 if (tt.IsList) ix.Type = tt.Elem!;
                 else if (tt == VType.Str) ix.Type = VType.Str;
-                else if (tt == VType.Vibe) ix.Type = VType.Vibe;
+                else if (tt.IsDynamic) ix.Type = tt;
                 else Error(ix.Line, $"can't index into a {tt}");
-                if (tt != VType.Vibe) ix.IndexExpr = CoerceTo(ix.IndexExpr, VType.Int, ix.Line);
+                if (!tt.IsDynamic) ix.IndexExpr = CoerceTo(ix.IndexExpr, VType.Int, ix.Line);
                 return ix;
 
             case Lambda lam:
@@ -500,17 +519,13 @@ public sealed class StaticPass(Knowledge knowledge)
 
         if (_functions.TryGetValue(c.Name, out var fn))
         {
-            for (int k = 0; k < c.Args.Count; k++)
-                c.Args[k] = CheckExpecting(c.Args[k], k < fn.Params.Count ? fn.Params[k].Type : null);
-            if (c.Args.Count != fn.Params.Count)
-                Error(c.Line, $"'{fn.Name}' takes {fn.Params.Count} argument(s), got {c.Args.Count}");
-            for (int k = 0; k < Math.Min(c.Args.Count, fn.Params.Count); k++)
-                c.Args[k] = CoerceTo(c.Args[k], fn.Params[k].Type, c.Line);
+            Bind(fn, c.Args, c.Named, c.Line, fn.Name);
             c.Type = fn.Ret;
             return c;
         }
 
         for (int k = 0; k < c.Args.Count; k++) c.Args[k] = Check(c.Args[k]);
+        foreach (var n in c.Named) n.Value = Check(n.Value);
         var argTypes = c.Args.Select(a => a.Type).ToList();
 
         if (Builtins.TryGetValue(c.Name, out var builtin))
@@ -565,8 +580,75 @@ public sealed class StaticPass(Knowledge knowledge)
 
     static readonly HashSet<string> ElementLambdas = ["map", "filter", "where", "select", "any", "all", "find", "forEach", "each", "sortBy", "orderBy", "count", "some", "every"];
 
+    /// Matches arguments to a function's parameters: positional first, then named, then defaults.
+    void Bind(FnDecl fn, List<Expr> args, List<NamedArg> named, int line, string display)
+    {
+        for (int k = 0; k < args.Count; k++)
+            args[k] = k < fn.Params.Count ? CoerceTo(CheckExpecting(args[k], fn.Params[k].Type), fn.Params[k].Type, line) : Check(args[k]);
+        if (args.Count > fn.Params.Count) Error(line, $"'{display}' takes {fn.Params.Count} argument(s), got {args.Count}");
+
+        var given = fn.Params.Take(args.Count).Select(p => p.Name).ToHashSet();
+        foreach (var n in named)
+        {
+            var p = fn.Params.FirstOrDefault(p => p.Name == n.Name);
+            if (p == null)
+            {
+                Error(line, $"'{display}' has no parameter '{n.Name}'. it takes: {string.Join(", ", fn.Params.Select(x => x.Name))}");
+                n.Value = Check(n.Value);
+                continue;
+            }
+            if (!given.Add(p.Name)) Error(line, $"'{n.Name}' is already given");
+            n.Value = CoerceTo(CheckExpecting(n.Value, p.Type), p.Type, line);
+        }
+        foreach (var p in fn.Params.Where(p => p.Default == null && !given.Contains(p.Name)))
+            Error(line, $"'{display}' needs '{p.Name}'");
+    }
+
+    /// A function with a signature and no body: the vibe pass writes the body, in Vibe.
+    void FillContract(FnDecl fn)
+    {
+        var key = Knowledge.FunctionKey(fn.Name, fn.Params.Select(p => p.Type), fn.Ret) + " contract";
+        var signature = Printer.Signature(fn);
+        if (knowledge.TryGet(key, out var ans) && ans.Ok && ans.Source != null)
+        {
+            try
+            {
+                var gen = Parser.ParseSource(ans.Source).OfType<FnDecl>().FirstOrDefault(f => f.Name == fn.Name);
+                if (gen != null && gen.Ret == fn.Ret && gen.Params.Select(p => p.Type).SequenceEqual(fn.Params.Select(p => p.Type)))
+                {
+                    // keep the programmer's parameter names: rename the generated body's to match
+                    fn.Body.AddRange(gen.Body);
+                    fn.Generated = true;
+                    Features.Add("generated-fn");
+                    Warn(fn.Line, $"'{fn.Name}' has no body. vibed one up");
+                    return;
+                }
+                Warn(fn.Line, $"the vibe pass wrote '{fn.Name}' with a different signature; the generator will implement it from the contract");
+            }
+            catch (VibeError ex) { Warn(fn.Line, $"the vibe pass wrote a broken '{fn.Name}' ({ex.Message}); the generator will implement it from the contract"); }
+            return;
+        }
+        if (ans != null) return;
+        Ask(new Question
+        {
+            Kind = QuestionKind.Function, Key = key, Line = fn.Line, Name = fn.Name,
+            ArgTypes = fn.Params.Select(p => p.Type).ToList(), Expected = fn.Ret,
+            Context = $"implement this exact signature, keeping the parameter names: {signature}",
+        });
+    }
+
     Expr CheckMember(Member m)
     {
+        var expected = _expected;
+        _expected = null;
+
+        // module calls: `use http` gets the standard library's rules; no `use` gets vibes
+        if (m.Target is Ident mid && Lookup(mid.Name) == null && !_functions.ContainsKey(mid.Name))
+        {
+            if (_modules.TryGetValue(mid.Name, out var module)) return CheckStdMember(m, mid.Name, module);
+            if (StdLib.Get(mid.Name) != null) return CheckVibedModuleMember(m, mid.Name, expected);
+        }
+
         m.Target = Check(m.Target);
         var recv = m.Target.Type;
 
@@ -583,7 +665,7 @@ public sealed class StaticPass(Knowledge knowledge)
             }
         }
 
-        if (recv == VType.Vibe) { m.Type = VType.Vibe; return m; } // dynamic: anything goes at runtime
+        if (recv.IsDynamic) { m.Type = recv; return m; } // dynamic: anything goes at runtime; json.field is json
 
         if (KnownMember(m, recv) is { } known) { m.Type = known; return m; }
 
@@ -602,6 +684,49 @@ public sealed class StaticPass(Knowledge knowledge)
             Kind = QuestionKind.Member, Key = key, Line = m.Line, Name = m.Name,
             Receiver = recv, ArgTypes = argTypes, IsProperty = m.Args == null,
         });
+        return m;
+    }
+
+    Expr CheckStdMember(Member m, string alias, ModuleInfo module)
+    {
+        m.Module = module.Name;
+        if (!module.Functions.TryGetValue(m.Name, out var fn))
+        {
+            Error(m.Line, $"{module.Name} has no '{m.Name}'. it has: {string.Join(", ", module.Functions.Keys.Order())}");
+            return m;
+        }
+        Bind(fn, m.Args ?? [], m.Named, m.Line, $"{alias}.{m.Name}");
+        m.Type = fn.Ret;
+        Features.Add("std");
+        if (!UsedStd.TryGetValue(module.Name, out var used)) UsedStd[module.Name] = used = [];
+        used.Add(fn.Name);
+        return m;
+    }
+
+    /// `http.get(...)` without `use http`: the vibe pass decides what it probably means.
+    Expr CheckVibedModuleMember(Member m, string name, VType? expected)
+    {
+        m.Module = name;
+        var args = m.Args ?? [];
+        for (int k = 0; k < args.Count; k++) args[k] = Check(args[k]);
+        foreach (var n in m.Named) n.Value = Check(n.Value);
+
+        var key = Knowledge.ModuleMemberKey(name, m.Name, args.Select(a => a.Type), m.Named.Select(n => n.Name), expected);
+        if (knowledge.TryGet(key, out var ans))
+        {
+            if (!ans.Ok) { Error(m.Line, $"couldn't work out what {name}.{m.Name} means. try `use {name}`"); return m; }
+            m.Type = VType.Parse(ans.Returns) ?? expected ?? VType.Vibe;
+            m.Meaning = ans.Meaning;
+            Features.Add("vibed-call");
+            Warn(m.Line, $"'{name}' isn't imported, so {name}.{m.Name} was vibed: {ans.Meaning}. `use {name}` for the standard library's rules");
+            return m;
+        }
+        Ask(new Question
+        {
+            Kind = QuestionKind.Member, Key = key, Line = m.Line, Name = m.Name, Module = name,
+            ArgTypes = args.Select(a => a.Type).ToList(), Named = m.Named.Select(n => n.Name).ToList(), IsProperty = m.Args == null, Expected = expected,
+        });
+        m.Type = expected ?? VType.Vibe;
         return m;
     }
 
@@ -686,6 +811,14 @@ public sealed class StaticPass(Knowledge knowledge)
         if (e is Lit { Value: null }) return e;                     // null fits anywhere
         if (from == VType.Int && to == VType.Float) return e;       // widening is free
         if (e is VibeExpr) { e.Type = to; return e; }               // the generator produces a `to` directly
+        if (to.IsList && from.IsList && to.Elem!.IsDynamic) return e; // list<vibe> takes any list
+        if (to == VType.Json || from == VType.Json)
+        {
+            // json parses from text and reads into anything, at runtime
+            Features.Add("json");
+            Features.Add("runtime-coercion");
+            return new Coerce(line, e, to) { Status = CoerceStatus.Runtime };
+        }
         if (e is ListLit list && to.IsList)
         {
             for (int k = 0; k < list.Items.Count; k++) list.Items[k] = CoerceTo(list.Items[k], to.Elem!, line, hint);

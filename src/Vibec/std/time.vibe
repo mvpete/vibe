@@ -1,0 +1,10 @@
+#prompt {
+    Time. Timestamps are ISO 8601 strings in local time with offset, e.g. 2026-10-25T14:32:00+11:00.
+    Durations are float seconds.
+}
+
+flex native string now()
+flex native int millis()
+flex native float since(string timestamp)
+flex native void sleep(float seconds)
+flex native string format(string timestamp, string pattern = "yyyy-MM-dd HH:mm")

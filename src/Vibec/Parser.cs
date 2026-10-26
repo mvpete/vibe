@@ -52,7 +52,7 @@ public class Parser(List<Token> tokens)
 
     // ---------- types ----------
 
-    static readonly HashSet<string> TypeWords = ["int", "float", "string", "bool", "vibe", "list", "void"];
+    static readonly HashSet<string> TypeWords = ["int", "float", "string", "bool", "vibe", "json", "list", "void"];
 
     bool AtType(int ahead = 0) => Peek(ahead).Type == Tok.Keyword && TypeWords.Contains(Peek(ahead).Text);
 
@@ -66,6 +66,7 @@ public class Parser(List<Token> tokens)
             case "string": return VType.Str;
             case "bool": return VType.Bool;
             case "vibe": return VType.Vibe;
+            case "json": return VType.Json;
             case "void": return VType.Void;
             case "list":
                 if (!Match("<")) return VType.ListOf(VType.Vibe);
@@ -110,11 +111,34 @@ public class Parser(List<Token> tokens)
 
         if (Peek().Type == Tok.Prompt) return new PromptStmt(line, (string)Next().Value!);
 
-        int typeLen = TypeLength(0);
-        if (typeLen > 0 && Peek(typeLen).Type == Tok.Ident && AtTok(Peek(typeLen + 1), "("))
+        if (Match("use"))
         {
-            // C#-style function: string greet(string who) { ... } - no EndStatement needed after a block
-            return Function(line);
+            var module = ExpectIdent().Text;
+            string? alias = Match("as") ? ExpectIdent().Text : null;
+            EndStatement();
+            return new UseStmt(line, module, alias);
+        }
+
+        bool isPublic = false, isNative = false;
+        while (true)
+        {
+            if (MatchAny("public", "flex")) isPublic = true;
+            else if (Match("native")) isNative = true;
+            else break;
+        }
+
+        int typeLen = TypeLength(0);
+        if (typeLen > 0 && Peek(typeLen).Type is Tok.Ident or Tok.Keyword && AtTok(Peek(typeLen + 1), "("))
+        {
+            // C#-style function (a keyword can name one: modules are called as time.sleep): string greet(string who) { ... }
+            return Function(line, isPublic, isNative);
+        }
+        if (isNative) throw new VibeError("only functions can be native", line);
+        if (isPublic)
+        {
+            var decl = Declaration(line);
+            EndStatement();
+            return new Decl(decl.Line, decl.DeclType, decl.Name, decl.Init) { Const = decl.Const, Global = decl.Global, Public = true };
         }
 
         if ((typeLen > 0 && Peek(typeLen).Type == Tok.Ident) || At("var") || At("let") || At("const") || At("based") || At("global") || At("rentfree"))
@@ -267,10 +291,10 @@ public class Parser(List<Token> tokens)
             throw new VibeError("you can only assign to a name, an index, or a property", line);
     }
 
-    FnDecl Function(int line)
+    FnDecl Function(int line, bool isPublic = false, bool isNative = false)
     {
         var ret = ParseType();
-        var name = ExpectIdent().Text;
+        var name = Peek().Type == Tok.Keyword ? Next().Text : ExpectIdent().Text;
         Expect("(");
         var ps = new List<Param>();
         if (!At(")"))
@@ -279,13 +303,25 @@ public class Parser(List<Token> tokens)
             {
                 if (!AtType()) throw new VibeError("params need a type. even a loose one. try 'vibe'", Peek().Line);
                 var pt = ParseType();
-                ps.Add(new Param(pt, ExpectIdent().Text));
+                var pname = ExpectIdent().Text;
+                ps.Add(new Param(pt, pname, Match("=") ? Expression() : null));
             } while (Match(","));
         }
         Expect(")");
+
+        // no body: a contract (or a native, for the standard library)
+        int save = _pos;
+        SkipNewlines();
+        if (!At("{"))
+        {
+            _pos = save;
+            EndStatement();
+            return new FnDecl(line, name, ps, ret, []) { HasBody = false, Native = isNative, Public = isPublic };
+        }
+        if (isNative) throw new VibeError($"native '{name}' can't have a body; the target implements it", line);
         var body = Block();
         SkipNewlines();
-        return new FnDecl(line, name, ps, ret, body);
+        return new FnDecl(line, name, ps, ret, body) { Public = isPublic };
     }
 
     If IfStmt(int line)
@@ -380,13 +416,34 @@ public class Parser(List<Token> tokens)
         return Postfix();
     }
 
-    List<Expr> Args()
+    bool NamedArgAhead() => Peek().Type is Tok.Ident or Tok.Keyword && AtTok(Peek(1), ":");
+
+    void Arg(List<Expr> args, List<NamedArg> named)
+    {
+        if (NamedArgAhead())
+        {
+            var name = Next().Text;
+            Next(); // :
+            if (named.Any(n => n.Name == name)) throw new VibeError($"'{name}:' given twice", Peek().Line);
+            named.Add(new NamedArg(name, Expression()));
+            return;
+        }
+        if (named.Count > 0) throw new VibeError("positional arguments go before named ones", Peek().Line);
+        args.Add(Expression());
+    }
+
+    (List<Expr> Args, List<NamedArg> Named) Args()
     {
         Expect("(");
         var args = new List<Expr>();
-        if (!At(")")) do args.Add(Expression()); while (Match(","));
+        var named = new List<NamedArg>();
+        while (!At(")"))
+        {
+            Arg(args, named);
+            if (!Match(",") && !NamedArgAhead()) break;
+        }
         Expect(")");
-        return args;
+        return (args, named);
     }
 
     static readonly HashSet<string> ValueKeywords = ["true", "false", "yeah", "nah", "nocap", "cap", "W", "L", "null", "idk", "maybe", "ask"];
@@ -395,31 +452,38 @@ public class Parser(List<Token> tokens)
     /// Operators never do, so `x - 1` stays subtraction.
     bool StartsArgument(Token t) => t.Type switch
     {
-        Tok.Int or Tok.Float or Tok.String or Tok.Interp or Tok.InlinePrompt or Tok.Ident => true,
+        Tok.Int or Tok.Float or Tok.Duration or Tok.String or Tok.Interp or Tok.InlinePrompt or Tok.Ident => true,
         Tok.Keyword => ValueKeywords.Contains(t.Text),
         Tok.Op => t.Text == "[",
         _ => false,
     };
 
-    List<Expr> BareArgs()
+    /// `greet "world"`, `add 1, 2`, `http.get url timeout: 2s` (named args need no comma)
+    (List<Expr> Args, List<NamedArg> Named) BareArgs()
     {
-        var args = new List<Expr> { Expression() };
-        while (Match(",")) args.Add(Expression());
-        return args;
+        var args = new List<Expr>();
+        var named = new List<NamedArg>();
+        Arg(args, named);
+        while (Match(",") || NamedArgAhead()) Arg(args, named);
+        return (args, named);
     }
 
     Expr Postfix()
     {
         var e = Primary();
         if (e is Ident bare && StartsArgument(Peek()) && !LambdaAhead())
-            return new Call(bare.Line, bare.Name, BareArgs());
+        {
+            var (a, n) = BareArgs();
+            return new Call(bare.Line, bare.Name, a) { Named = n };
+        }
 
         while (true)
         {
             if (At("("))
             {
                 if (e is not Ident id) throw new VibeError("only named functions can be called", e.Line);
-                e = new Call(id.Line, id.Name, Args());
+                var (a, n) = Args();
+                e = new Call(id.Line, id.Name, a) { Named = n };
             }
             else if (At("["))
             {
@@ -432,8 +496,8 @@ public class Parser(List<Token> tokens)
             {
                 int l = Next().Line;
                 var name = Peek().Type is Tok.Ident or Tok.Keyword ? Next().Text : throw new VibeError("expected a member name after '.'", l);
-                if (At("(")) e = new Member(l, e, name, Args());
-                else if (StartsArgument(Peek())) return new Member(l, e, name, BareArgs());
+                if (At("(")) { var (a, n) = Args(); e = new Member(l, e, name, a) { Named = n }; }
+                else if (StartsArgument(Peek())) { var (a, n) = BareArgs(); return new Member(l, e, name, a) { Named = n }; }
                 else e = new Member(l, e, name, null);
             }
             else return e;
@@ -482,12 +546,13 @@ public class Parser(List<Token> tokens)
         {
             case Tok.Int: return new Lit(t.Line, t.Value, VType.Int);
             case Tok.Float: return new Lit(t.Line, t.Value, VType.Float);
+            case Tok.Duration: return new Lit(t.Line, t.Value, VType.Float) { Display = t.Text };
             case Tok.String: return new Lit(t.Line, t.Value, VType.Str);
             case Tok.Interp: return Interpolated(t);
             case Tok.InlinePrompt: return new VibeExpr(t.Line, (string)t.Value!);
             case Tok.Ident:
                 // input("...") is the Python spelling of ask
-                if (t.Text == "input" && At("(")) { var a = Args(); return new Ask(t.Line, a.FirstOrDefault()); }
+                if (t.Text == "input" && At("(")) { var (a, _) = Args(); return new Ask(t.Line, a.FirstOrDefault()); }
                 return new Ident(t.Line, t.Text);
         }
 
@@ -506,7 +571,7 @@ public class Parser(List<Token> tokens)
                 Expect(")");
                 return new Cast(t.Line, to, inner);
             case "ask":
-                if (At("(")) { var a = Args(); return new Ask(t.Line, a.FirstOrDefault()); }
+                if (At("(")) { var (a, _) = Args(); return new Ask(t.Line, a.FirstOrDefault()); }
                 return new Ask(t.Line, Peek().Type == Tok.String ? Primary() : null);
             case "(":
                 var e = Expression();

@@ -80,7 +80,13 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
         var annotated = Printer.Print(program.Concat(pass.Generated));
         if (o.DumpAst) Intermediate(Path.Combine(intDir, $"{name}.ast.vibe"), annotated);
 
-        var (ir, promptReply) = await new PromptPass(provider).WriteAsync(annotated, pass.Features, target, toolchain, ct);
+        var library = pass.UsedStd.Count == 0 ? null : string.Join("\n\n", pass.UsedStd.OrderBy(u => u.Key).Select(u =>
+        {
+            var module = StdLib.Get(u.Key)!;
+            var signatures = string.Join("\n", u.Value.Select(f => Printer.Signature(module.Functions[f])));
+            return $"### {module.Name}\n{module.Prompt}\n```vibe\n{signatures}\n```";
+        }));
+        var (ir, promptReply) = await new PromptPass(provider).WriteAsync(annotated, pass.Features, target, toolchain, library, ct);
         Step("lowering", $"specification ready ({promptReply.OutputTokens} tokens)");
         Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.prompt.md"), ir);
 

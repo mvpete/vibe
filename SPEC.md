@@ -31,7 +31,12 @@ in `~/.vibec/toolchains/<target>.json`. Commands never run through a shell.
 
 ## Types
 
-`int` (64-bit) · `float` (double) · `string` · `bool` · `list<T>` · `vibe` (dynamic) · `void` (functions only)
+`int` (64-bit) · `float` (double) · `string` · `bool` · `list<T>` · `json` · `vibe` (dynamic) · `void` (functions only)
+
+`json` holds parsed JSON. `x.field` and `x[i]` are json too (missing → null). Assigning a string to a
+`json` parses it; assigning a json to another type reads it as that type. Both happen at runtime.
+
+Duration literals are float seconds: `500ms`, `2s`, `1.5m`, `1h`, `1d`.
 
 `var` / `let` infers the type from the value and never coerces.
 
@@ -142,6 +147,57 @@ Lists: `.length`, `.push(x)`, `.pop()`, `.contains(x)`, `.indexOf(x)`, `.join(se
 Strings: `.length`, `.upper()`, `.lower()`, `.trim()`, `.split(sep)`, `.contains(s)`, `.startsWith(s)`,
 `.endsWith(s)`, `.replace(a, b)`, `.indexOf(s)`.
 Anything else is sent to the vibe pass, which decides what it means.
+
+### Named arguments and defaults
+
+```vibe
+int add(int a, int b = 2) { return a + b }
+add 1                 # 3
+add 1, b: 5           # 6
+add 1 b: 5            # named arguments don't need a comma
+```
+
+Positional arguments come first. Every parameter without a default must be given.
+
+### Contracts
+
+A function with a signature and no body is a contract. Semantic resolution writes the body, in Vibe,
+and it's checked like the rest of your code (`--dump-ast` shows it):
+
+```vibe
+list<string> slugify(list<string> titles)    # lowercase, dashes for spaces
+```
+
+`public` (Gen Z: `flex`) marks what a module exports. `native` is reserved for the standard library:
+a native function is implemented by the backend, in the target language.
+
+### Standard library
+
+`use` brings in a module from Vibe's standard library, and with it that module's rules: typed
+signatures, defaults, units, and what throws. The contracts are plain Vibe in
+[`src/Vibec/std/`](src/Vibec/std).
+
+```vibe
+use http
+json res = http.get "https://bing.ca" timeout: 2s
+print res.field
+```
+
+| Module | Functions |
+|---|---|
+| `http` | `get`, `post`, `put`, `delete`, `status`; `timeout` in seconds, non-2xx throws |
+| `fs` | `read`, `lines`, `write`, `append`, `exists`, `delete`, `files` |
+| `time` | `now`, `millis`, `since`, `sleep`, `format` |
+| `random` | `between`, `unit`, `chance`, `pick`, `shuffle` |
+| `env` | `args`, `get`, `cwd` |
+| `math` | `sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `min`, `max`, `pi` |
+
+`use http as web` gives a module another name. Wrong arguments, unknown parameters and unknown
+functions are compile errors.
+
+**Without `use`, you get vibes.** `http.get(...)` with no `use http` still compiles: semantic
+resolution decides what it probably means, and you get a warning pointing at `use`. The standard
+library's rules only apply when you ask for them.
 
 ### Undefined functions
 

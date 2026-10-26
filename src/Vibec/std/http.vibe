@@ -1,0 +1,12 @@
+#prompt {
+    HTTP client. Requests follow redirects and send a "vibec" User-Agent.
+    `timeout` is in seconds; going over it throws an error.
+    Network failures and non-2xx responses throw an error whose message includes the status code and URL.
+    Bodies are returned as text. Assign one to a json variable to parse it.
+}
+
+flex native string get(string url, float timeout = 30s)
+flex native string post(string url, string body, string contentType = "application/json", float timeout = 30s)
+flex native string put(string url, string body, string contentType = "application/json", float timeout = 30s)
+flex native string delete(string url, float timeout = 30s)
+flex native int status(string url, float timeout = 30s)

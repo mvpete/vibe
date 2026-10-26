@@ -14,10 +14,12 @@ public sealed class VType
     public static readonly VType Vibe = new("vibe");
     public static readonly VType Void = new("void");
     public static readonly VType Fn = new("fn");
+    public static readonly VType Json = new("json");
     public static VType ListOf(VType elem) => new("list", elem);
 
     public bool IsList => Name == "list";
     public bool IsNumeric => this == Int || this == Float;
+    public bool IsDynamic => this == Vibe || this == Json;
 
     /// Parses the names this compiler prints ("int", "list<string>", ...), for model answers.
     public static VType? Parse(string? s)
@@ -29,7 +31,7 @@ public sealed class VType
         return s switch
         {
             "int" => Int, "float" => Float, "string" => Str, "bool" => Bool,
-            "vibe" => Vibe, "void" => Void, "list" => ListOf(Vibe), _ => null,
+            "vibe" => Vibe, "void" => Void, "json" => Json, "list" => ListOf(Vibe), _ => null,
         };
     }
 
@@ -55,6 +57,7 @@ public abstract class Expr(int line)
 public sealed class Lit : Expr
 {
     public object? Value { get; }
+    public string? Display { get; init; } // how it was written, when that's nicer than the value (2s)
     public Lit(int line, object? value, VType type) : base(line) { Value = value; Type = type; }
 }
 
@@ -88,10 +91,18 @@ public sealed class Binary(int line, string op, Expr left, Expr right) : Expr(li
     public Expr Right { get; set; } = right;
 }
 
+/// `timeout: 2s`
+public sealed class NamedArg(string name, Expr value)
+{
+    public string Name { get; } = name;
+    public Expr Value { get; set; } = value;
+}
+
 public sealed class Call(int line, string name, List<Expr> args) : Expr(line)
 {
     public string Name { get; } = name;
     public List<Expr> Args { get; } = args;
+    public List<NamedArg> Named { get; init; } = [];
     public string? Meaning { get; set; } // for functions the vibe pass had to interpret
 }
 
@@ -101,6 +112,8 @@ public sealed class Member(int line, Expr target, string name, List<Expr>? args)
     public Expr Target { get; set; } = target;
     public string Name { get; } = name;
     public List<Expr>? Args { get; } = args; // null = property access
+    public List<NamedArg> Named { get; init; } = [];
+    public string? Module { get; set; } // set when this is a call into a module (std or vibed)
     public string? Meaning { get; set; }
 }
 
@@ -163,6 +176,7 @@ public sealed class Decl(int line, VType? type, string name, Expr? init) : Stmt(
     public Expr? Init { get; set; } = init;
     public bool Const { get; init; }     // const / based
     public bool Global { get; init; }    // global / rentfree: visible everywhere, even before it's declared
+    public bool Public { get; init; }    // public / flex
 }
 
 public sealed class Assign(int line, Expr target, string op, Expr value) : Stmt(line)
@@ -174,7 +188,7 @@ public sealed class Assign(int line, Expr target, string op, Expr value) : Stmt(
 
 public sealed class ExprStmt(int line, Expr expr) : Stmt(line) { public Expr Expr { get; set; } = expr; }
 
-public record Param(VType Type, string Name);
+public record Param(VType Type, string Name, Expr? Default = null);
 
 public sealed class FnDecl(int line, string name, List<Param> ps, VType ret, List<Stmt> body) : Stmt(line)
 {
@@ -183,6 +197,9 @@ public sealed class FnDecl(int line, string name, List<Param> ps, VType ret, Lis
     public VType Ret { get; } = ret;
     public List<Stmt> Body { get; } = body;
     public bool Generated { get; set; } // written by the vibe pass, not the programmer
+    public bool HasBody { get; init; } = true; // false = a contract: just the signature
+    public bool Native { get; init; }   // implemented by the backend in the target (standard library)
+    public bool Public { get; init; }   // public / flex: visible to modules that use this one
 }
 
 public sealed class If(int line, Expr cond, List<Stmt> then, List<Stmt>? els) : Stmt(line)
@@ -264,6 +281,14 @@ public sealed class PromptStmt(int line, string text) : Stmt(line)
 {
     public string Text { get; } = text;
     public bool Global { get; set; } // at the top of the file, before any code
+}
+
+/// `use http` / `use http as web`
+public sealed class UseStmt(int line, string module, string? alias) : Stmt(line)
+{
+    public string Module { get; } = module;
+    public string? Alias { get; } = alias;
+    public string Name => Alias ?? Module;
 }
 
 public sealed class Break(int line) : Stmt(line);

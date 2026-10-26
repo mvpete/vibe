@@ -6,6 +6,7 @@
 | [greeter.vibe](greeter.vibe) | `while infinity`, an inline prompt, string interpolation |
 | [calls.vibe](calls.vibe) | functions, calls without parentheses, a generated function |
 | [taste.vibe](taste.vibe) | strongly-loose typing, `kinda`, `maybe`, `#prompt`, typo fixing, runtime coercion |
+| [web.vibe](web.vibe) | `use http`, named arguments, durations, `json` |
 | [nocap.vibe](nocap.vibe) | the Gen Z dictionary: `vibeshift`, `based`, `rentfree`, `yeet`, `touchgrass`, ... |
 
 ```powershell

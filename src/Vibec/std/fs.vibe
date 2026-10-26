@@ -1,0 +1,12 @@
+#prompt {
+    Files. Paths are relative to the current working directory. Text is UTF-8.
+    Reading a missing file throws an error naming the path. Writing creates parent folders.
+}
+
+flex native string read(string path)
+flex native list<string> lines(string path)
+flex native void write(string path, string text)
+flex native void append(string path, string text)
+flex native bool exists(string path)
+flex native void delete(string path)
+flex native list<string> files(string folder = ".")

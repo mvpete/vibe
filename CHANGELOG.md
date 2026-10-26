@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Language
+- Standard library, opt-in with `use`: `http`, `fs`, `time`, `random`, `env`, `math`. Contracts are written in Vibe
+  with `native` functions the backend implements. Without `use`, module calls are vibed, with a warning.
+- `json` type with field access.
+- Named arguments (`timeout: 2s`, no comma needed after a paren-less call) and parameter defaults.
+- Duration literals: `500ms`, `2s`, `1.5m`, `1h`.
+- Contracts: functions without bodies get their bodies written by semantic resolution.
+- `public` / `flex`, `use x as y`.
+
 ## 0.1.0: the discovery
 
 First release. Rules run in order.

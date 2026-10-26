@@ -1,0 +1,13 @@
+#prompt {
+    Math on floats. floor, ceil and round return ints; round goes half away from zero.
+}
+
+flex native float sqrt(float x)
+flex native float pow(float x, float y)
+flex native float abs(float x)
+flex native int floor(float x)
+flex native int ceil(float x)
+flex native int round(float x)
+flex native float min(float a, float b)
+flex native float max(float a, float b)
+flex native float pi()

@@ -19,6 +19,8 @@ public sealed class Question
     // Function / Member
     public string? Name { get; init; }
     public VType? Receiver { get; init; }
+    public string? Module { get; init; } // member of a module the program didn't `use`
+    public List<string>? Named { get; init; } // names of named arguments, e.g. timeout
     public List<VType>? ArgTypes { get; init; }
     public bool IsProperty { get; init; }
 
@@ -76,6 +78,8 @@ public sealed class Knowledge
         $"fn:{name}({string.Join(",", args)})->{expected?.ToString() ?? "?"}";
     public static string MemberKey(VType receiver, string name, IEnumerable<VType>? args) =>
         args == null ? $"member:{receiver}.{name}" : $"member:{receiver}.{name}({string.Join(",", args)})";
+    public static string ModuleMemberKey(string module, string name, IEnumerable<VType> args, IEnumerable<string> named, VType? expected) =>
+        $"module:{module}.{name}({string.Join(",", args.Select(a => a.ToString()).Concat(named.Select(n => n + ":")))})->{expected?.ToString() ?? "?"}";
     public static string NameKey(string name, IEnumerable<string> candidates, VType? expected) =>
         $"name:{name}[{string.Join(",", candidates.Order())}]->{expected?.ToString() ?? "?"}";
 }

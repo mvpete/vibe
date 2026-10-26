@@ -1,0 +1,10 @@
+#prompt {
+    Randomness from the target's standard pseudo-random generator, seeded from the clock.
+    Not for security.
+}
+
+flex native int between(int low, int high)
+flex native float unit()
+flex native bool chance(float probability = 0.5)
+flex native vibe pick(list<vibe> items)
+flex native list<vibe> shuffle(list<vibe> items)

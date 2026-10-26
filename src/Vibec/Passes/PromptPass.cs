@@ -41,6 +41,8 @@ public sealed class PromptPass(IModelProvider provider)
             - `+` with a string on either side concatenates, stringifying the other side as print would.
             - int / int is integer division truncating toward zero; % is remainder.
             - f"...{expr}..." interpolates exactly like print would format the value.
+            - Duration literals (500ms, 2s, 5m, 1h) are float seconds.
+            - Named arguments (`timeout: 2s`) bind to the parameter with that name; omitted parameters take their defaults.
             """,
         ["kinda"] = "- `a kinda b` is fuzzy equality: numbers match if |a-b| <= 10% of max(|a|,|b|) (or both are 0); strings match ignoring case, surrounding whitespace and punctuation; anything else falls back to ==.",
         ["maybe"] = "- `maybe` is a fresh 50/50 random bool every time it is evaluated.",
@@ -74,6 +76,8 @@ public sealed class PromptPass(IModelProvider provider)
         ["highkey"] = "- `highkey a, b` prints like print, but uppercased and followed by \"!!\" - it's shouting.",
         ["spill"] = "- `spill x` is a debug print: writes `<x as written> = <value>` (e.g. `total = 3`) to stderr.",
         ["assume"] = "- `assume cond` is a promise from the programmer that cond is true here. Don't check it; you may rely on it.",
+        ["json"] = "- `json` holds parsed JSON (object, array, string, number, bool or null). `x.field` and `x[i]` read into it and are json too (missing → null). Converting a string to json parses it (invalid JSON raises an error); converting json to another type reads it as that type.",
+        ["std"] = "- `module.function(...)` calls into Vibe's standard library. Implement each with the target's idiomatic standard library, following its contract under \"Standard library\" exactly: parameters, defaults, units, what throws.",
         ["vibed-call"] ="- Calls and members with a `# name: ...` note aren't built-ins; the note says what they do. Implement them.",
     };
 
@@ -86,7 +90,7 @@ public sealed class PromptPass(IModelProvider provider)
     }
 
     public async Task<(string Prompt, ModelReply Reply)> WriteAsync(
-        string annotatedSource, IEnumerable<string> features, Recipe target, Toolchain? toolchain, CancellationToken ct)
+        string annotatedSource, IEnumerable<string> features, Recipe target, Toolchain? toolchain, string? library, CancellationToken ct)
     {
         var user = $"""
             ## Target
@@ -99,6 +103,7 @@ public sealed class PromptPass(IModelProvider provider)
             ## Vibe semantics used by this program
             {SemanticsFor(features)}
 
+            {(library == null ? "" : "## Standard library\n" + library + "\n")}
             ## Annotated program
             ```vibe
             {annotatedSource}
