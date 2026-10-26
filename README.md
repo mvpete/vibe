@@ -1,6 +1,6 @@
 # Vibe
 
-**Stop vibe coding in the gym. Start writing rules instead.**
+**Vibe coding, for those who just want to code.**
 
 [![ci](https://github.com/mvpete/vibe/actions/workflows/ci.yml/badge.svg)](https://github.com/mvpete/vibe/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/mvpete/vibe?include_prereleases)](https://github.com/mvpete/vibe/releases)
