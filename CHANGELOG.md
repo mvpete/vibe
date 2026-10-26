@@ -21,6 +21,8 @@
 - JSON object literals: `{ ok: true, count: n }`.
 - `fn` parameters; a function's name passes the function where an `fn` is expected.
 - The backend keeps the program's structure: no pre-computing results or inlining a caught error's message.
+- Lowering writes the behaviour as numbered steps in program order. Every string the program prints (and every `spill`
+  label) must appear in the specification and in the generated code; if not, lowering revises or the backend repairs.
 - Long generations get a 15-minute network timeout; timeouts are a clean `model error` instead of a crash.
 - `maincharacter { }` is now exactly `void main() { }`: the program's entry point, generated as the target's own entry point
   rather than a function it calls. With a main, statements go inside it.

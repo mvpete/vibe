@@ -111,14 +111,20 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
             var signatures = string.Join("\n", u.Value.Select(f => Printer.Signature(module.Functions[f])));
             return $"### {module.Name}\n{module.Prompt}\n```vibe\n{signatures}\n```";
         }));
-        var (ir, promptReply) = await Indicator.Run("lowering", () => new PromptPass(provider).WriteAsync(annotated, analysis.Features, target, toolchain, library, ct));
-        Step("lowering", $"specification ready ({promptReply.OutputTokens} tokens)");
+        var printed = analysis.PrintedText;
+        var written = await Indicator.Run("lowering", () => new PromptPass(provider).WriteAsync(annotated, analysis.Features, target, toolchain, library, printed, m => Step("lowering", m), ct));
+        var ir = written.Prompt;
+        Step("lowering", $"specification ready ({written.OutputTokens} tokens{(written.Revisions > 0 ? $", {written.Revisions} revision(s)" : "")})");
+        if (written.Missing.Count > 0)
+            log.WriteLine($"  warning: the specification still leaves out: {string.Join(", ", written.Missing.Select(m => $"\"{m}\""))}");
         Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.prompt.md"), ir);
 
         if (Directory.Exists(srcDir)) Directory.Delete(srcDir, recursive: true);
         Directory.CreateDirectory(srcDir);
 
-        var result = await new CodegenPass(provider).RunAsync(ir, target, toolchain, o.MaxRepairs, srcDir, name, m => Step("backend", m), ct);
+        var result = await new CodegenPass(provider).RunAsync(ir, target, toolchain, o.MaxRepairs, srcDir, name, printed, m => Step("backend", m), ct);
+        if (result.Missing is { Count: > 0 } stillMissing)
+            log.WriteLine($"  warning: the generated code still doesn't contain this output text: {string.Join(", ", stillMissing.Select(m => $"\"{m}\""))}");
         Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.transcript.md"), result.Transcript);
 
         var sourceFile = Path.Combine(srcDir, target.FileName);

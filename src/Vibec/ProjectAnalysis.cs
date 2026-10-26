@@ -71,6 +71,32 @@ public sealed class ProjectAnalysis
         }
     }
 
+    /// Every piece of text the program prints, as written: what the generated code must contain.
+    /// Text with quotes, backslashes or line breaks is skipped, since targets escape those differently.
+    public List<string> PrintedText =>
+        Modules.SelectMany(m => StaticPass.AllExprsOf(m.Program.Concat(m.Pass.Generated).ToList()))
+            .SelectMany(e => e switch
+            {
+                Lit { Value: string s } => [s],
+                Interp i => i.Parts.OfType<string>(),
+                _ => Array.Empty<string>(),
+            })
+            // spill x prints "x = <value>": the label is output text too
+            .Concat(Modules.SelectMany(m => StaticPass.Spills(m.Program.Concat(m.Pass.Generated).ToList())).Select(label => $"{label} ="))
+            .Select(s => s.Trim())
+            .Where(s => s.Length >= 1 && s.IndexOfAny(['"', '\\', '\n', '\r', '\t', '{', '}']) < 0)
+            .Distinct()
+            .ToList();
+
+    /// Does this spec or code contain the text? Short text ("W") only counts when quoted, or every
+    /// Console.WriteLine would contain an "L".
+    public static bool ContainsText(string haystack, string text) =>
+        text.Length >= 3
+            ? haystack.Contains(text, StringComparison.Ordinal)
+            : haystack.Contains($"\"{text}\"", StringComparison.Ordinal)
+              || haystack.Contains($"`{text}`", StringComparison.Ordinal)
+              || haystack.Contains($"'{text}'", StringComparison.Ordinal);
+
     /// Every module's source, for semantic resolution's context.
     public string Sources => IsMultiModule
         ? string.Join("\n\n", Modules.Select(m => $"// {m.Module.FileName}\n{m.Module.Source}"))

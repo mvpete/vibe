@@ -20,6 +20,10 @@ public sealed class PromptPass(IModelProvider provider)
           exact tolerances, exact messages, exact library choices.
         - Give every resolved constant exactly. Preserve program order, all output text verbatim,
           and the observable behaviour of every statement.
+        - Write the behaviour as numbered steps in exactly the program's order: one step per statement,
+          including ones that do little (spill, assume, exit, a lone return). Nested blocks get nested
+          steps. Don't group statements by topic and don't move any of them; put general notes (I/O,
+          formatting, target details) after the steps. Tell the generator to implement the steps in order.
         - For deferred values (`vibe<T>("...")` marked deferred), decide the value yourself and say why.
         - Spell out the target's constraints and how its I/O maps to print/ask.
         - Mention anything the generator might trip on (unused variables, integer division, etc.).
@@ -33,6 +37,8 @@ public sealed class PromptPass(IModelProvider provider)
           error's message, a loop's output), or drop code that looks redundant or unreachable.
           `try { throw "x" } catch (e) { print e }` throws and catches at runtime and prints the
           caught message; it is not `print "x"`. Say this explicitly too.
+        - Quote every piece of output text exactly, in the step that prints it. Never write "use the
+          literals from the source": spell them out.
         - Do not write the program itself. Write the specification.
 
         Output only the prompt, as Markdown, starting with a "# Task" heading.
@@ -103,8 +109,16 @@ public sealed class PromptPass(IModelProvider provider)
         return sb.ToString().TrimEnd();
     }
 
-    public async Task<(string Prompt, ModelReply Reply)> WriteAsync(
-        string annotatedSource, IEnumerable<string> features, Recipe target, Toolchain? toolchain, string? library, CancellationToken ct)
+    public sealed record Written(string Prompt, int OutputTokens, int Revisions, IReadOnlyList<string> Missing);
+
+    const int MaxRevisions = 2;
+
+    /// Writes the specification from the annotated AST. requiredText is every string the program
+    /// prints: the backend only ever sees this specification, so a spec that leaves any of them out
+    /// goes back to be revised.
+    public async Task<Written> WriteAsync(
+        string annotatedSource, IEnumerable<string> features, Recipe target, Toolchain? toolchain, string? library,
+        IReadOnlyList<string> requiredText, Action<string> log, CancellationToken ct)
     {
         var user = $"""
             ## Target
@@ -124,9 +138,29 @@ public sealed class PromptPass(IModelProvider provider)
             ```
             """;
 
-        var reply = await provider.CompleteAsync(new ModelRequest(System, [new ChatTurn(Role.User, user)], Effort: Effort.Medium), ct);
-        if (reply.Refused) throw new ModelException($"the prompt pass was refused: {reply.RefusalReason ?? "no reason given"}");
-        if (string.IsNullOrWhiteSpace(reply.Text)) throw new ModelException("the prompt pass came back empty");
-        return (reply.Text.Trim(), reply);
+        var turns = new List<ChatTurn> { new(Role.User, user) };
+        int outputTokens = 0;
+        for (int revision = 0; ; revision++)
+        {
+            var reply = await provider.CompleteAsync(new ModelRequest(System, turns, Effort: Effort.Medium), ct);
+            if (reply.Refused) throw new ModelException($"the prompt pass was refused: {reply.RefusalReason ?? "no reason given"}");
+            if (string.IsNullOrWhiteSpace(reply.Text)) throw new ModelException("the prompt pass came back empty");
+            outputTokens += reply.OutputTokens;
+            var spec = reply.Text.Trim();
+
+            var missing = requiredText.Where(t => !ProjectAnalysis.ContainsText(spec, t)).ToList();
+            if (missing.Count == 0 || revision == MaxRevisions) return new Written(spec, outputTokens, revision, missing);
+
+            log($"the specification leaves out {missing.Count} piece(s) of output text; revising");
+            turns.Add(new ChatTurn(Role.Assistant, spec));
+            turns.Add(new ChatTurn(Role.User, $"""
+                Your specification leaves out output text that the program prints:
+                {string.Join("\n", missing.Select(m => $"- \"{m}\""))}
+
+                The generator sees only your specification, so it can't know these. Quote each one exactly,
+                in the step that prints it, and never refer to "the source" instead of spelling something out.
+                Return the whole revised specification.
+                """));
+        }
     }
 }

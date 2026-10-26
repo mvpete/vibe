@@ -269,3 +269,45 @@ public class CacheKeyTests
         Assert.Empty(pass.Errors());
     }
 }
+
+public class PrintedTextTests
+{
+    static List<string> Printed(string src)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "vibec-printed-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "p.vibe"), src);
+            var (modules, _) = ModuleLoader.Load(Path.Combine(dir, "p.vibe"));
+            return ProjectAnalysis.Run(modules, new Knowledge(null), final: false).PrintedText;
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [Fact]
+    public void EveryPrintedStringIsCollected()
+    {
+        var text = Printed("int score = 1\nswitch score {\n  1 => highkey \"slay\"\n  _ => print \"L\"\n}\ntry { throw \"x\" } catch (e) { print \"caught: {$e}\" }");
+        Assert.Contains("slay", text);
+        Assert.Contains("L", text);
+        Assert.Contains("caught:", text);
+        Assert.DoesNotContain("x", text); // thrown, not printed
+    }
+
+    [Fact]
+    public void SpillLabelsAreOutputText()
+    {
+        Assert.Contains("score =", Printed("int score = 1\nspill score"));
+    }
+
+    [Theory]
+    [InlineData("Console.WriteLine(\"L\");", "L", true)]
+    [InlineData("Console.WriteLine(\"W\");", "L", false)]       // the L in WriteLine doesn't count
+    [InlineData("print `W` when it matches", "W", true)]
+    [InlineData("Console.WriteLine(\"slay\".ToUpper());", "slay", true)]
+    public void ShortTextHasToBeQuoted(string haystack, string text, bool expected)
+    {
+        Assert.Equal(expected, ProjectAnalysis.ContainsText(haystack, text));
+    }
+}

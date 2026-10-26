@@ -195,6 +195,14 @@ public sealed class StaticPass(Knowledge knowledge)
             foreach (var x in Walk(child)) yield return x;
     }
 
+    /// The expressions printed by print/say/write/highkey/lowkey/spill, anywhere in the program.
+    public static IEnumerable<Expr> AllExprsOf(List<Stmt> program) =>
+        All(program).OfType<Say>().SelectMany(s => s.Args).SelectMany(Walk);
+
+    /// The labels of every spill (spill score → "score").
+    public static IEnumerable<string> Spills(List<Stmt> program) =>
+        All(program).OfType<Say>().Where(s => s.Mode == SayMode.Spill && s.Label != null).Select(s => s.Label!);
+
     /// Every statement, nested ones included.
     static IEnumerable<Stmt> All(IEnumerable<Stmt> stmts)
     {

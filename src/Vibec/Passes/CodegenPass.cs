@@ -40,9 +40,12 @@ public sealed class CodegenPass(IModelProvider provider)
         }
         """)!;
 
-    public sealed record Result(string Code, string? Notes, bool Built, bool Verified, int Attempts, string? Errors, string Transcript);
+    public sealed record Result(string Code, string? Notes, bool Built, bool Verified, int Attempts, string? Errors, string Transcript, IReadOnlyList<string>? Missing = null);
 
-    public async Task<Result> RunAsync(string ir, Recipe target, Toolchain? toolchain, int maxRepairs, string workDir, string name, Action<string> log, CancellationToken ct)
+    /// requiredText: every string the program prints. Code that builds but leaves any of them out
+    /// isn't the program, so it goes back for repair like a build error.
+    public async Task<Result> RunAsync(string ir, Recipe target, Toolchain? toolchain, int maxRepairs, string workDir, string name,
+        IReadOnlyList<string> requiredText, Action<string> log, CancellationToken ct)
     {
         var turns = new List<ChatTurn> { new(Role.User, ir) };
         var transcript = new StringBuilder($"# System\n\n{System}\n\n# User (IR)\n\n{ir}\n");
@@ -59,17 +62,30 @@ public sealed class CodegenPass(IModelProvider provider)
             if (notes.Length > 0) transcript.Append($"\nNotes: {notes}\n");
             log($"attempt {attempt}: {code.Split('\n').Length} lines ({reply.OutputTokens} tokens)");
 
+            var missing = requiredText.Where(t => !ProjectAnalysis.ContainsText(code, t)).ToList();
+            var missingNote = missing.Count == 0 ? "" :
+                "The program prints these, but the code doesn't contain them, so it can't produce the program's output: " +
+                string.Join(", ", missing.Select(m => $"\"{m}\"")) + ". Every print in the specification must be in the code, with its exact text.";
+            if (missing.Count > 0) log($"attempt {attempt}: {missing.Count} piece(s) of output text missing ({string.Join(", ", missing.Take(4).Select(m => $"\"{m}\""))}{(missing.Count > 4 ? ", ..." : "")})");
+
             if (toolchain == null)
             {
                 File.WriteAllText(Path.Combine(workDir, target.FileName), code);
-                return new Result(code, notes, Built: false, Verified: false, attempt, null, transcript.ToString());
+                if (missing.Count == 0 || attempt > maxRepairs)
+                    return new Result(code, notes, Built: false, Verified: false, attempt, null, transcript.ToString(), missing);
+                Repair(json, missingNote);
+                continue;
             }
 
             var build = Toolchains.Build(target, toolchain, code, workDir, name);
             if (build.Ok)
             {
                 log($"attempt {attempt}: builds with {toolchain.Display}");
-                return new Result(code, notes, Built: true, Verified: true, attempt, null, transcript.ToString());
+                if (missing.Count == 0 || attempt > maxRepairs)
+                    return new Result(code, notes, Built: true, Verified: true, attempt, null, transcript.ToString(), missing);
+                transcript.Append($"\n# Missing output text (attempt {attempt})\n\n{missingNote}\n");
+                Repair(json, missingNote);
+                continue;
             }
 
             var errors = build.Errors;
@@ -86,16 +102,24 @@ public sealed class CodegenPass(IModelProvider provider)
                 return new Result(code, notes, Built: false, Verified: true, attempt, errors, transcript.ToString());
 
             lastErrors = errors;
-            // append-only: the model sees its own attempt next to the compiler's verdict
-            turns.Add(new ChatTurn(Role.Assistant, json.ToJsonString()));
-            turns.Add(new ChatTurn(Role.User, $"""
+            Repair(json, $"""
                 The build failed with {toolchain.Display}:
 
                 ```
                 {errors}
                 ```
+                {missingNote}
+                """);
+        }
 
-                Fix every error and return the full corrected file in the same JSON format.
+        // append-only: the model sees its own attempt next to the verdict
+        void Repair(JsonObject attempt, string problem)
+        {
+            turns.Add(new ChatTurn(Role.Assistant, attempt.ToJsonString()));
+            turns.Add(new ChatTurn(Role.User, $"""
+                {problem.Trim()}
+
+                Fix it and return the full corrected file in the same JSON format.
                 Keep the behaviour identical to the specification.
                 """));
         }
