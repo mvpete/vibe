@@ -34,6 +34,9 @@
   interpolation) are fixed in your source file. `--no-ftfy` warns instead; `vibec undo` / `vibec nvm` puts it back.
 
 ### Compiler
+- Write once, compile anywhere: lowering writes a target-neutral IL (`.vibe-int/<name>.il.md`), reused until your
+  rules change. The backend prompt is the IL plus the target, assembled by the compiler. `vibec app.il.md -t rust`
+  compiles an IL directly.
 - Every compile reports its model calls, tokens (cached input priced separately) and cost, using prices from OpenAI's pricing page (`IModelProvider.GetPriceAsync`); override in appsettings.json.
 - Default model is now `gpt-6-luna`.
 - Fixed: contract and generated-function questions now send their context (signature, module prompt) to the model.

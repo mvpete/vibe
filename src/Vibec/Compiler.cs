@@ -25,7 +25,10 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
     public async Task<int> CompileAsync(CompileOptions o, CancellationToken ct)
     {
         var dir = Path.GetDirectoryName(Path.GetFullPath(o.SourcePath))!;
-        var name = Path.GetFileNameWithoutExtension(o.SourcePath);
+        bool fromIl = IlFile.IsIlPath(o.SourcePath);
+        var name = fromIl ? IlFile.NameOf(o.SourcePath) : Path.GetFileNameWithoutExtension(o.SourcePath);
+        // an IL sitting in .vibe-int/ builds next to its source, not inside .vibe-int/
+        if (fromIl && Path.GetFileName(dir) == ".vibe-int") dir = Path.GetDirectoryName(dir)!;
         // toolchain first: you should know before paying for codegen
         var intDir = Path.Combine(dir, ".vibe-int");
         var srcDir = Path.Combine(intDir, "src", $"{name}-{o.Target}");
@@ -48,6 +51,8 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
             else Step("toolchain", found.TooOld ? $"⚠ {found.Display} (old; builds may fail)" : found.Display);
             toolchain = found;
         }
+
+        if (fromIl) return await CompileIlAsync(o, target, toolchain, intDir, srcDir, binDir, ct);
 
         // the entry file plus every module it uses, dependencies first
         var (modules, loadWarnings) = ModuleLoader.Load(o.SourcePath);
@@ -111,18 +116,53 @@ public sealed class Compiler(IModelProvider provider, TextWriter log)
             var signatures = string.Join("\n", u.Value.Select(f => Printer.Signature(module.Functions[f])));
             return $"### {module.Name}\n{module.Prompt}\n```vibe\n{signatures}\n```";
         }));
+        // lowering writes the IL once; it's target-neutral, so any target can reuse it
+        var ilPath = Path.Combine(intDir, $"{name}.il.md");
         var printed = analysis.PrintedText;
-        var written = await Indicator.Run("lowering", () => new PromptPass(provider).WriteAsync(annotated, analysis.Features, target, toolchain, library, printed, m => Step("lowering", m), ct));
-        var ir = written.Prompt;
-        Step("lowering", $"specification ready ({written.OutputTokens} tokens{(written.Revisions > 0 ? $", {written.Revisions} revision(s)" : "")})");
-        if (written.Missing.Count > 0)
-            log.WriteLine($"  warning: the specification still leaves out: {string.Join(", ", written.Missing.Select(m => $"\"{m}\""))}");
-        Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.prompt.md"), ir);
+        var hash = Knowledge.Hash(string.Join("\n---\n", PromptPass.Version, annotated, library ?? "", PromptPass.SemanticsFor(analysis.Features)));
+        var cached = !o.Fresh && File.Exists(ilPath) ? TryParseIl(File.ReadAllText(ilPath)) : null;
+        IlFile il;
+        if (cached?.Hash == hash)
+        {
+            il = cached;
+            Step("lowering", $"reusing {Path.GetRelativePath(Environment.CurrentDirectory, ilPath)} (your rules haven't changed)");
+        }
+        else
+        {
+            var written = await Indicator.Run("lowering", () => new PromptPass(provider).WriteAsync(annotated, analysis.Features, library, printed, m => Step("lowering", m), ct));
+            Step("lowering", $"IL ready ({written.OutputTokens} tokens{(written.Revisions > 0 ? $", {written.Revisions} revision(s)" : "")})");
+            if (written.Missing.Count > 0)
+                log.WriteLine($"  warning: the IL still leaves out: {string.Join(", ", written.Missing.Select(m => $"\"{m}\""))}");
+            il = new IlFile(Path.GetFileName(o.SourcePath), hash, printed, written.Prompt);
+            Intermediate(ilPath, il.Render());
+        }
+
+        return await BackendAsync(il, name, target, toolchain, intDir, srcDir, binDir, o, ct);
+    }
+
+    /// `vibec greeter.il.md -t rust`: compile an IL directly, no Vibe needed.
+    async Task<int> CompileIlAsync(CompileOptions o, Recipe target, Toolchain? toolchain, string intDir, string srcDir, string binDir, CancellationToken ct)
+    {
+        var il = IlFile.Parse(File.ReadAllText(o.SourcePath));
+        Step("IL", $"{Path.GetFileName(o.SourcePath)} (written from {il.Source})");
+        return await BackendAsync(il, IlFile.NameOf(o.SourcePath), target, toolchain, intDir, srcDir, binDir, o, ct);
+    }
+
+    static IlFile? TryParseIl(string text)
+    {
+        try { return IlFile.Parse(text); } catch (VibeError) { return null; }
+    }
+
+    async Task<int> BackendAsync(IlFile il, string name, Recipe target, Toolchain? toolchain, string intDir, string srcDir, string binDir, CompileOptions o, CancellationToken ct)
+    {
+        var prompt = CodegenPass.BackendPrompt(il.Body, target, toolchain);
+        Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.prompt.md"), prompt);
+        var printed = il.OutputText;
 
         if (Directory.Exists(srcDir)) Directory.Delete(srcDir, recursive: true);
         Directory.CreateDirectory(srcDir);
 
-        var result = await new CodegenPass(provider).RunAsync(ir, target, toolchain, o.MaxRepairs, srcDir, name, printed, m => Step("backend", m), ct);
+        var result = await new CodegenPass(provider).RunAsync(prompt, target, toolchain, o.MaxRepairs, srcDir, name, printed, m => Step("backend", m), ct);
         if (result.Missing is { Count: > 0 } stillMissing)
             log.WriteLine($"  warning: the generated code still doesn't contain this output text: {string.Join(", ", stillMissing.Select(m => $"\"{m}\""))}");
         Intermediate(Path.Combine(intDir, $"{name}.{target.Target}.transcript.md"), result.Transcript);

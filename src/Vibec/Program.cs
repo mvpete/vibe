@@ -6,6 +6,7 @@ const string Usage = """
 
     usage:
       vibec <file.vibe> [options]
+      vibec <file.il.md> -t <target>       compile an IL directly (write once, compile anywhere)
       vibec doctor [<target>] [--refresh] [--provider <p>] [--model <m>]
       vibec undo <file.vibe> [--force]     put back what FTFY changed (also: vibec nvm)
 

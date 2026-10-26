@@ -9,8 +9,8 @@ namespace Vibec.Passes;
 public sealed class CodegenPass(IModelProvider provider)
 {
     const string System = """
-        You are a meticulous code generator. Implement the specification you are given exactly,
-        as one complete, compilable source file. Follow every constraint. No placeholders, no TODOs,
+        You are a meticulous code generator. You get a target and a language-neutral specification.
+        Implement the specification exactly, in the target, as one complete, compilable source file. Follow every constraint. No placeholders, no TODOs,
         no omitted sections.
 
         Add nothing. No control flow, exits, breaks, validation, null or end-of-input checks, error
@@ -39,6 +39,24 @@ public sealed class CodegenPass(IModelProvider provider)
           "additionalProperties": false
         }
         """)!;
+
+    /// The backend prompt: the IL plus the target. Written by the compiler, not a model.
+    public static string BackendPrompt(string il, Recipe target, Toolchain? toolchain) => $"""
+        # Target
+
+        Language: {target.Language}
+        Output file: {target.FileName}
+        Toolchain: {toolchain?.Display ?? "not installed; the code won't be compile-checked, so be conservative"}
+        Constraints:
+        {string.Join("\n", target.Constraints.Select(c => "- " + c))}
+
+        Map the specification's neutral terms (standard output, standard error, input lines, exit codes,
+        files, HTTP, time) onto this target's standard facilities.
+
+        ---
+
+        {il.Trim()}
+        """;
 
     public sealed record Result(string Code, string? Notes, bool Built, bool Verified, int Attempts, string? Errors, string Transcript, IReadOnlyList<string>? Missing = null);
 

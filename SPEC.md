@@ -15,15 +15,34 @@ int lucky = GenerateLuckyNumber()       # not defined anywhere: the compiler wri
 
 ```
 .vibe → lex → parse → static pass ⇄ vibe pass 🤖 → annotated AST
-      → prompt pass 🤖 → prompt (IR) → codegen 🤖 → build ⇄ repair → output
+      → lowering 🤖 → IL (target-neutral) → backend prompt (+ target) → codegen 🤖 → build ⇄ repair → output
 ```
 
 | Stage | Job |
 |---|---|
 | **static pass** | Scopes, type inference, every place a value must bend to fit a type. Settles the deterministic cases (`"42"` → `42`) and turns the rest into *vibe questions*. |
 | **vibe pass** | One batched, structured model call answers the questions: literal coercions, undefined functions (it writes them, in Vibe), unknown methods, typos. Answers are cached in `.vibe-int/vibecache.json`. The static pass re-runs with the answers, up to 3 rounds. |
-| **prompt pass** | A model turns the annotated AST into a precise implementation spec for the target: the IR. |
-| **codegen** | A model implements the IR. The output is built with the real toolchain, and compiler errors are fed back as follow-up turns until it builds (`--max-repairs`, default 3). |
+| **lowering** | A model turns the annotated AST into the **IL**: numbered steps in program order, in neutral terms (standard output, input lines, exit codes, files, HTTP), naming no language or library. Every string the program prints must appear in it, or it's revised. Saved as `.vibe-int/<name>.il.md`, and reused until the annotated program changes. |
+| **backend prompt** | The compiler, not a model, adds the target (language, file, constraints, toolchain) to the IL: `.vibe-int/<name>.<target>.prompt.md`. |
+| **codegen** | A model implements the backend prompt. The output is built with the real toolchain; compiler errors, and any printed text the code leaves out, go back as follow-up turns until it's right (`--max-repairs`, default 3). |
+
+The backend only ever sees the backend prompt: never the Vibe source, never the AST.
+
+### The IL
+
+An IL file is Markdown with a small header:
+
+```
+<!-- vibe-il 1
+{"Source":"greeter.vibe","Hash":"60487bf34d12","OutputText":["hello"]}
+-->
+# Task
+1. Execute the `while true` loop...
+```
+
+`Hash` records what produced it (the annotated program, the semantics and lowering's instructions),
+so vibec knows when to rewrite it. `OutputText` is what the generated code must print, so the
+backend's checks work without the source. `vibec file.il.md -t <target>` compiles one directly.
 
 Toolchains aren't hardcoded. The first time you use a target, the model writes a *recipe*: how to
 detect the toolchain and how to compile-check one file. You approve it once, and it's cached
@@ -314,6 +333,7 @@ other `#` lines are comments. Write `%%` for a literal `%` inside an inline prom
 vibec app.vibe --target rust              → bin/app.exe (built and repaired with rustc)
 vibec app.vibe -t html -o site            → site/app.html
 vibec doctor [target]                     model reachability + toolchain status
+vibec app.il.md -t rust                   compile an IL directly (write once, compile anywhere)
 
   -o, --out DIR     output folder (default: bin/ next to the source)
   --dump-ast        also write the annotated AST → .vibe-int/app.ast.vibe
@@ -334,7 +354,8 @@ Layout, next to the source:
 
 ```
 .vibe-int/vibecache.json        resolved vibes, so unchanged code isn't re-asked
-.vibe-int/<name>.<target>.prompt.md      the IR: exactly what the backend receives
+.vibe-int/<name>.il.md                   the IL: target-neutral, reused across targets
+.vibe-int/<name>.<target>.prompt.md      exactly what the backend receives: the IL plus the target
 .vibe-int/<name>.<target>.transcript.md  every backend attempt and build error
 .vibe-int/<name>.ast.vibe                annotated AST, with --dump-ast
 .vibe-int/src/<name>-<target>/  generated source and build files; the build runs here

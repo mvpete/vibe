@@ -189,22 +189,40 @@ You write rules. `vibec`, the **Vibe compiler**, turns them into a real program 
 language of your choice: C#, Rust, Go, HTML, whatever you like.
 
 ```
-your rules → parse → semantic resolution → lowering → backend → build → program
+your rules → parse → semantic resolution → lowering → IL → backend → build → program
 ```
 
 1. **Parse.** Your rules are read and structured.
 2. **Semantic resolution.** Vibe guarantees are enforced. `"twelve"` becomes `12`. Missing rule groups get written. Typos get fixed.
-3. **Lowering.** Your program becomes a precise specification for the target language.
-4. **Backend.** The specification becomes source code.
-5. **Build.** The code is compiled with your real compiler. If it doesn't compile, the backend is told exactly what went wrong and tries again.
+3. **Lowering.** Your program becomes the **IL**: a precise, step-by-step specification that doesn't mention any programming language.
+4. **Backend.** The IL, plus the language you asked for, becomes source code.
+5. **Build.** The code is compiled with your real compiler. If it doesn't compile, or leaves out anything your rules print, the backend is told exactly what went wrong and tries again.
 
 Nothing is vibed. Everything is checked. You can read every step:
 
 ```
-.vibe-int/app.rust.prompt.md        the specification the backend receives
+.vibe-int/app.il.md                 the IL: your program, in no language in particular
+.vibe-int/app.rust.prompt.md        what the backend receives: the IL plus the target
 .vibe-int/app.rust.transcript.md    every backend attempt and build error
 .vibe-int/app.ast.vibe              your rules after semantic resolution (with --dump-ast)
 ```
+
+### Write once, compile anywhere
+
+The IL is a plain Markdown file of numbered steps: "read a line of standard input", "print
+`hello ` followed by the name". It names no language, so it compiles to any of them:
+
+```powershell
+vibec greeter.vibe                          # rules → IL → C#
+vibec .vibe-int/greeter.il.md -t javascript # the same IL → JavaScript
+vibec .vibe-int/greeter.il.md -t rust       # → Rust
+```
+
+Lowering only runs when your rules change. Compiling the same rules to a second language reuses the
+IL, so it's one model call instead of two. You can also hand someone an `.il.md` file and they can
+build it for whatever they've got, without ever seeing Vibe.
+
+We believe this is a first.
 
 > Fine print: semantic resolution, lowering, and the backend are performed by a large
 > language model (OpenAI by default, or anything OpenAI-compatible, like a local Ollama).

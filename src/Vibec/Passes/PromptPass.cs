@@ -3,29 +3,36 @@ using Vibec.Providers;
 
 namespace Vibec.Passes;
 
-/// Prompt pass. Turns the annotated AST into the IR: a precise, self-contained implementation
-/// prompt for the codegen model, written by a model that knows Vibe's semantics.
+/// Lowering. Turns the annotated AST into the IL: a target-neutral specification of the program,
+/// written by a model that knows Vibe's semantics. Compiled to any target by the backend.
 public sealed class PromptPass(IModelProvider provider)
 {
-    const string System = """
-        You are the prompt pass of vibec, the compiler for Vibe, a strongly-loose typed language.
-        You receive an annotated Vibe program (already type-checked; coercions resolved where
-        possible, with `# notes` on the lines where the compiler intervened), the runtime semantics
-        of the Vibe features it uses, and a target language with constraints.
+    /// Bump when the instructions change, so cached IL is rewritten.
+    public const string Version = "il-1";
 
-        Write the prompt that a code-generation model will receive. That model will NOT see the Vibe
-        source or know Vibe exists - your prompt is its entire world. So:
+    const string System = """
+        You are the lowering pass of vibec, the compiler for Vibe, a strongly-loose typed language.
+        You receive an annotated Vibe program (already type-checked; coercions resolved where
+        possible, with `# notes` on the lines where the compiler intervened) and the runtime semantics
+        of the Vibe features it uses.
+
+        Write the IL: a target-neutral specification that a code-generation model will turn into a
+        program in whatever language it's asked for: C#, Rust, Python, a web page. You don't know the
+        target, and the same specification must work for all of them. That model will NOT see the Vibe
+        source or know Vibe exists - your specification is its entire world. So:
+        - Don't mention any programming language, library, API or framework. Describe behaviour in
+          neutral terms: standard output and standard error, lines of input, exit codes, files, HTTP
+          requests and responses, time, randomness.
         - Translate every Vibe-specific behaviour (kinda, maybe, vibe<T>(...), %inline prompts%, #prompt
-          instructions, vibecheck) into concrete, testable instructions for the target language:
-          exact tolerances, exact messages, exact library choices.
+          instructions, vibecheck) into concrete, testable behaviour: exact tolerances, exact messages,
+          exact formats.
         - Give every resolved constant exactly. Preserve program order, all output text verbatim,
           and the observable behaviour of every statement.
         - Write the behaviour as numbered steps in exactly the program's order: one step per statement,
           including ones that do little (spill, assume, exit, a lone return). Nested blocks get nested
           steps. Don't group statements by topic and don't move any of them; put general notes (I/O,
-          formatting, target details) after the steps. Tell the generator to implement the steps in order.
+          formatting) after the steps. Tell the generator to implement the steps in order.
         - For deferred values (`vibe<T>("...")` marked deferred), decide the value yourself and say why.
-        - Spell out the target's constraints and how its I/O maps to print/ask.
         - Mention anything the generator might trip on (unused variables, integer division, etc.).
         - Faithfulness is the first rule. The program does exactly what the Vibe program says and
           nothing more: no extra exits or breaks, no input validation, no null/end-of-input handling,
@@ -41,7 +48,7 @@ public sealed class PromptPass(IModelProvider provider)
           literals from the source": spell them out.
         - Do not write the program itself. Write the specification.
 
-        Output only the prompt, as Markdown, starting with a "# Task" heading.
+        Output only the specification, as Markdown, starting with a "# Task" heading.
         """;
 
     static readonly Dictionary<string, string> Semantics = new()
@@ -69,7 +76,7 @@ public sealed class PromptPass(IModelProvider provider)
               A failed conversion raises an error (catchable by try/catch) whose message says what couldn't be converted.
             """,
         ["deferred"] = "- `vibe<T>(\"literal\")` marked `deferred` means the compiler couldn't interpret the literal; pick the most sensible constant of type T and state it.",
-        ["vibe-expr"] = "- `%description%` is an inline prompt: implement exactly what the description says and nothing beyond it, producing the annotated type. If it reads input, it behaves like ask (including at end of input).",
+        ["vibe-expr"] = "- `%description%` is an inline prompt: implement exactly what the description says and nothing beyond it, producing the annotated type. If it reads input, it reads one line without the line ending; at end of input the value is the empty string, and it never stops or exits the program.",
         ["ask"] = "- `ask(prompt)` writes the prompt (no newline, followed by a space) and reads one line of input, without the line ending. At end of input it returns an empty string; it never stops, breaks out of, or exits the program.",
         ["vibecheck"] = "- `vibecheck cond` is an assertion: if false, write `vibe check failed: <the condition as written>` to stderr and exit with code 1.",
         ["try"] = "- `try { } catch (e) { }` catches any error raised in the block; `e` is the error's message as a string.",
@@ -117,17 +124,10 @@ public sealed class PromptPass(IModelProvider provider)
     /// prints: the backend only ever sees this specification, so a spec that leaves any of them out
     /// goes back to be revised.
     public async Task<Written> WriteAsync(
-        string annotatedSource, IEnumerable<string> features, Recipe target, Toolchain? toolchain, string? library,
+        string annotatedSource, IEnumerable<string> features, string? library,
         IReadOnlyList<string> requiredText, Action<string> log, CancellationToken ct)
     {
         var user = $"""
-            ## Target
-            Language: {target.Language}
-            Output file: {target.FileName}
-            Toolchain: {toolchain?.Display ?? "not installed; the code won't be compile-checked, so be conservative"}
-            Constraints:
-            {string.Join("\n", target.Constraints.Select(c => "- " + c))}
-
             ## Vibe semantics used by this program
             {SemanticsFor(features)}
 
